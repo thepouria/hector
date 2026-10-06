@@ -85,6 +85,8 @@ export const PERMISSIONS = {
   FINANCE_PAYABLES_MANAGE: 'finance.payables.manage',
   FINANCE_PAYMENTS_READ: 'finance.payments.read',
   FINANCE_PAYMENTS_CREATE: 'finance.payments.create',
+  FINANCE_RECEIPTS_READ: 'finance.receipts.read',
+  FINANCE_RECEIPTS_CREATE: 'finance.receipts.create',
   FINANCE_EXPENSES_READ: 'finance.expenses.read',
   FINANCE_EXPENSES_MANAGE: 'finance.expenses.manage',
   FINANCE_FX_READ: 'finance.fx.read',

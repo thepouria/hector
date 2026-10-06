@@ -285,6 +285,24 @@ export const NAVIGATION: NavGroup[] = [
         permission: PERMISSIONS.FINANCE_FX_READ,
       },
       {
+        label: 'پرداخت‌ها',
+        href: ROUTES.financePayments,
+        icon: ArrowDownToLine,
+        permission: PERMISSIONS.FINANCE_PAYMENTS_READ,
+      },
+      {
+        label: 'دریافت‌ها',
+        href: ROUTES.financeReceipts,
+        icon: PackagePlus,
+        permission: PERMISSIONS.FINANCE_RECEIPTS_READ,
+      },
+      {
+        label: 'انتقال‌ها',
+        href: ROUTES.financeAccountTransfers,
+        icon: ArrowLeftRight,
+        permission: PERMISSIONS.FINANCE_TRANSFERS_READ,
+      },
+      {
         label: 'تسویه‌ها',
         href: ROUTES.settlements,
         icon: ReceiptText,

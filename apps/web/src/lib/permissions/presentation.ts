@@ -217,12 +217,22 @@ const KNOWN: Record<string, Omit<PermissionPresentation, 'key'>> = {
   [PERMISSIONS.FINANCE_PAYMENTS_READ]: {
     group: 'finance',
     label: 'مشاهده پرداخت‌ها',
-    description: 'مشاهده پرداخت‌ها و دریافت‌های مالی',
+    description: 'مشاهده پرداخت‌های مستقل (خروج پول)',
   },
   [PERMISSIONS.FINANCE_PAYMENTS_CREATE]: {
     group: 'finance',
     label: 'ثبت پرداخت',
-    description: 'ثبت پرداخت/دریافت در برابر تعهدات',
+    description: 'ثبت، پست و برگشت پرداخت‌های مستقل',
+  },
+  [PERMISSIONS.FINANCE_RECEIPTS_READ]: {
+    group: 'finance',
+    label: 'مشاهده دریافت‌ها',
+    description: 'مشاهده دریافت‌های مستقل (ورود پول)',
+  },
+  [PERMISSIONS.FINANCE_RECEIPTS_CREATE]: {
+    group: 'finance',
+    label: 'ثبت دریافت',
+    description: 'ثبت، پست و برگشت دریافت‌های مستقل',
   },
   [PERMISSIONS.FINANCE_EXPENSES_READ]: {
     group: 'finance',

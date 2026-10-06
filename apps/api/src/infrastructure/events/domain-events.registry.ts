@@ -203,6 +203,15 @@ export const DOMAIN_EVENTS = {
   FX_CONVERSION_POSTED: 'finance.fx.conversion_posted',
   FX_CONVERSION_CANCELLED: 'finance.fx.conversion_cancelled',
   FX_CONVERSION_REVERSED: 'finance.fx.conversion_reversed',
+
+  PAYMENT_CREATED: 'finance.payment.created',
+  PAYMENT_POSTED: 'finance.payment.posted',
+  PAYMENT_CANCELLED: 'finance.payment.cancelled',
+  PAYMENT_REVERSED: 'finance.payment.reversed',
+  RECEIPT_CREATED: 'finance.receipt.created',
+  RECEIPT_POSTED: 'finance.receipt.posted',
+  RECEIPT_CANCELLED: 'finance.receipt.cancelled',
+  RECEIPT_REVERSED: 'finance.receipt.reversed',
 } as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENTS)[keyof typeof DOMAIN_EVENTS];

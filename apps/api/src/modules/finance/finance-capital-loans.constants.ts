@@ -59,11 +59,14 @@ export const LOAN_REFERENCE_MAX_LENGTH = 200;
 export const LOAN_LENDER_NAME_MAX_LENGTH = 200;
 export const LOAN_SEARCH_MAX_LENGTH = 100;
 
-/** Operational provenance keys written by Phase 4.2 / 4.3 workflows. */
+/** Operational provenance keys — keep in sync with finance-accounts.constants. */
 export const FINANCE_ACCOUNT_SOURCE_TYPES = {
   OPENING_BALANCE: 'OPENING_BALANCE',
   ACCOUNT_TRANSFER: 'ACCOUNT_TRANSFER',
   CAPITAL_INJECTION: 'CAPITAL_INJECTION',
   LOAN_DISBURSEMENT: 'LOAN_DISBURSEMENT',
   LOAN_REPAYMENT: 'LOAN_REPAYMENT',
+  FX_CONVERSION: 'FX_CONVERSION',
+  PAYMENT: 'PAYMENT',
+  RECEIPT: 'RECEIPT',
 } as const;

@@ -167,20 +167,22 @@ Docs:
 - `docs/warehouse-sales-contract.md`
 - `docs/phase-3.18-final-qa-report.md` — Final QA report
 
-### Finance (Phase 4.5 — FX + Currency Ledger)
+### Finance (Phase 4.6 — Payments + Receipts + Transfers)
 
-**Status: Phase 4.5 COMPLETE — READY FOR 4.6**
+**Status: Phase 4.6 COMPLETE — READY FOR 4.7**
 
+- `docs/finance-money-movements.md` — FIN-MOV-001…028 + anti-double-count matrix + APIs
+- `docs/phase-4.6-payments-receipts-transfers-report.md` — Phase 4.6 report (§156 STATUS)
 - `docs/finance-fx-currency.md` — FIN-FX-001…025 + APIs + settlement contract note for 4.9
 - `docs/phase-4.5-fx-currency-report.md` — Phase 4.5 report (46 sections)
-- `docs/finance-supplier-payables.md` — FIN-AP-001…025 + allocation/FX contracts
+- `docs/finance-supplier-payables.md` — FIN-AP-001…025; cash Payment in 4.6; settle+allocate in **4.9**
 - `docs/phase-4.4-supplier-payables-report.md` — Phase 4.4 report (44 sections)
 - `docs/finance-funding-loans.md` — FIN-FUND-001…008 + FIN-LOAN-001…014 + APIs
 - `docs/phase-4.3-capital-loans-report.md` — Phase 4.3 report (43 sections)
 - `docs/finance-accounts.md` — FIN-ACC-001…020 + APIs (Phase 4.2)
 - `docs/phase-4.2-accounts-report.md` — Phase 4.2 report
 - `docs/finance-architecture.md` — Finance Core architecture
-- `docs/finance-invariants.md` — FIN-CUR / FIN-FX / FIN-FUND / FIN-LOAN / FIN-AP / FIN-CASH / FIN-JRN / FIN-TEN
+- `docs/finance-invariants.md` — FIN-CUR / FIN-FX / FIN-FUND / FIN-LOAN / FIN-AP / FIN-MOV / FIN-CASH / FIN-JRN / FIN-TEN
 - `docs/finance-domain-boundaries.md` — ownership matrix + recognition matrix
 - `docs/finance-currency-and-money.md` — Money / Currency / FX / rounding
 - `docs/finance-purchasing-contract.md` — Purchasing → Finance (recognition live)
@@ -188,7 +190,7 @@ Docs:
 - `docs/phase-4.1-finance-architecture-report.md` — Phase 4.1 report
 
 ```bash
-pnpm db:check:finance     # accounts + capital/loans + payables integrity (0 violations expected)
+pnpm db:check:finance     # accounts + capital/loans + payables + FX + payments/receipts (0 violations expected)
 pnpm db:check:warehouse   # warehouse + inventory workflow integrity (0 violations expected)
 pnpm db:check:inventory   # StockBalance = SUM(Ledger) per position
 pnpm db:check:valuation   # reservations + FIFO + valuation

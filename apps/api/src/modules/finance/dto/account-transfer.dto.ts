@@ -57,6 +57,16 @@ export class ListAccountTransfersQueryDto extends PaginationQueryDto {
   @IsEnum(FinancialAccountTransferStatus)
   status?: FinancialAccountTransferStatus;
 
+  @ApiPropertyOptional({ description: 'Alias: fromAccount' })
+  @IsOptional()
+  @IsUUID()
+  fromAccountId?: string;
+
+  @ApiPropertyOptional({ description: 'Alias: toAccount' })
+  @IsOptional()
+  @IsUUID()
+  toAccountId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()

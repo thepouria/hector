@@ -32,7 +32,7 @@ Supplier liability ledger. Recognition on POSTED Goods Receipt. Outstanding is a
 | **FIN-AP-024** | Supplier Payable is distinct from Loan Liability. |
 | **FIN-AP-025** | Supplier Payable is distinct from Revenue and Capital. |
 
-Operational locks: unique recognition per `goodsReceiptItemId`; ORDERED-only = no payable; allocation foundation posts no Account OUT (Phase 4.6).
+Operational locks: unique recognition per `goodsReceiptItemId`; ORDERED-only = no payable; allocation foundation posts no Account OUT (cash Payment is Phase 4.6; settle+allocate is Phase 4.9).
 
 ## Outstanding formula
 
@@ -66,25 +66,27 @@ SRE DISPATCHED
 
 Hook: `SupplierReturnExecutionsService.dispatch()` → `reduceFromSupplierReturnInTx`.
 
-## Payment allocation contract (Phase 4.6 readiness)
+## Payment allocation contract (Phase 4.9 settlement)
 
-Phase 4.4 ships **liability-only** allocation:
+Phase 4.4 ships **liability-only** allocation foundation; Phase **4.6** adds standalone `Payment` (cash OUT) **without** settling payables.
 
 | Field | Role |
 |---|---|
 | `SupplierPaymentAllocation` | Posted allocation row (amount, currency, optional paymentSource*) |
 | `PAYMENT_ALLOCATION` decrease | Canonical liability reduction |
-| `paymentSourceType` / `paymentSourceId` | Reserved for future Payment document (4.6) |
+| `paymentSourceType` / `paymentSourceId` | Links to Payment document when settlement lands |
 
-**4.6 must:**
+**4.6 delivers:** Create / post Payment (cash OUT via AccountMovementsWriter). `purposeType=SUPPLIER` does **not** call `allocateSupplierPaymentInTx`.
 
-1. Create / post Payment (cash OUT via AccountMovementsWriter).
-2. Call `allocateSupplierPaymentInTx` in the **same** transaction with `paymentSourceType/Id` set.
-3. Never allocate without cash (or explicit non-cash settlement document).
-4. Preserve currency match + over-allocate guards already in 4.4.
-5. Keep idempotency via `requestId` on allocation.
+**4.9 must:**
 
-4.4 UI/API allocation is a **foundation** for tests and admin backfill — production cash path lands in 4.6.
+1. In the **same** transaction as cash settlement: post/reference Payment + call `allocateSupplierPaymentInTx` with `paymentSourceType/Id` set.
+2. Never allocate without cash (or explicit non-cash settlement document).
+3. Preserve currency match + over-allocate guards already in 4.4.
+4. Keep idempotency via `requestId` on allocation.
+5. Handle FX settlement of foreign obligations with local cash (SETTLEMENT rate).
+
+4.4 UI/API allocation remains a **foundation** for tests and admin backfill — production cash+settle path lands in **4.9**, not 4.6.
 
 ## FX settlement readiness (Phase 4.9)
 
@@ -103,7 +105,7 @@ Changing PO `referenceFxRate` after recognition must **not** rewrite payable cur
 - `SupplierPayableLine` — GRN item recognition slice (unique goodsReceiptItemId)
 - `SupplierLiabilityMovement` — INCREASE / DECREASE ledger
 - `SupplierCredit` — SC-######; excess return / credit notes
-- `SupplierPaymentAllocation` — foundation for 4.6
+- `SupplierPaymentAllocation` — foundation for 4.9 settlement (cash Payment exists in 4.6)
 
 ## APIs
 

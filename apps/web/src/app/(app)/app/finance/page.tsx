@@ -14,7 +14,7 @@ export default function Page() {
     <div className="space-y-6">
       <PageHeader
         title="مالی"
-        description="حساب‌ها، سرمایه، وام، بدهی تأمین‌کننده و ارز — موجودی و مانده از دفتر حرکات مشتق می‌شود."
+        description="حساب‌ها، سرمایه، وام، بدهی، ارز، پرداخت، دریافت و انتقال — موجودی از دفتر حرکات مشتق می‌شود."
       />
       <div className="flex flex-wrap gap-3">
         <Link href={ROUTES.financeAccounts} className={cn(buttonVariants())}>
@@ -32,9 +32,21 @@ export default function Page() {
         <Link href={ROUTES.financeFx} className={cn(buttonVariants({ variant: 'outline' }))}>
           ارز / FX
         </Link>
+        <Link href={ROUTES.financePayments} className={cn(buttonVariants({ variant: 'outline' }))}>
+          پرداخت‌ها
+        </Link>
+        <Link href={ROUTES.financeReceipts} className={cn(buttonVariants({ variant: 'outline' }))}>
+          دریافت‌ها
+        </Link>
+        <Link
+          href={ROUTES.financeAccountTransfers}
+          className={cn(buttonVariants({ variant: 'outline' }))}
+        >
+          انتقال‌ها
+        </Link>
       </div>
       <p className="text-sm text-slate-600">
-        فازهای بعدی: پرداخت نقد به تأمین‌کننده، FX settlement، هزینه، دفتر روزنامه.
+        فازهای بعدی: هزینه، دفتر روزنامه، تسویه بدهی تأمین‌کننده (۴.۹).
       </p>
     </div>
   );

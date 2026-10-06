@@ -32,7 +32,7 @@ export const ACCOUNT_TRANSFER_ERROR_MESSAGES = {
   NOT_REVERSIBLE: 'Only POSTED transfers can be reversed.',
   SAME_ACCOUNT: 'Source and destination accounts must be different.',
   CROSS_CURRENCY:
-    'Same-currency transfers only. Cross-currency movement belongs to FX / Payments (Phase 4.5/4.6).',
+    'Same-currency transfers only. For cross-currency movement use FX Conversion.',
   ACCOUNT_INACTIVE: 'Both source and destination accounts must be ACTIVE.',
   IDEMPOTENCY_CONFLICT: 'This requestId was already used for a different transfer payload.',
   NUMBER_CONFLICT: 'Account transfer number conflict.',
@@ -66,7 +66,7 @@ export type FinancialAccountSortField = (typeof FINANCIAL_ACCOUNT_SORT_FIELDS)[n
 export const ACCOUNT_TRANSFER_NOTES_MAX_LENGTH = 2000;
 export const ACCOUNT_TRANSFER_SEARCH_MAX_LENGTH = 100;
 
-/** Provenance keys written by Phase 4.2 / 4.3 / 4.5 workflows. */
+/** Provenance keys written by Phase 4.2 / 4.3 / 4.5 / 4.6 workflows. */
 export const FINANCE_ACCOUNT_SOURCE_TYPES = {
   OPENING_BALANCE: 'OPENING_BALANCE',
   ACCOUNT_TRANSFER: 'ACCOUNT_TRANSFER',
@@ -74,4 +74,6 @@ export const FINANCE_ACCOUNT_SOURCE_TYPES = {
   LOAN_DISBURSEMENT: 'LOAN_DISBURSEMENT',
   LOAN_REPAYMENT: 'LOAN_REPAYMENT',
   FX_CONVERSION: 'FX_CONVERSION',
+  PAYMENT: 'PAYMENT',
+  RECEIPT: 'RECEIPT',
 } as const;

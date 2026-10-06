@@ -15,6 +15,21 @@ Architecture locks. Implementation phases enforce them.
 
 Operational FX detail: **FIN-FX-001…025** in `docs/finance-fx-currency.md` (Phase 4.5).
 
+## Money movements — FIN-MOV-*
+
+Canonical **FIN-MOV-001…028** live in `docs/finance-money-movements.md` (Phase 4.6).
+
+Summary locks:
+
+| ID | Invariant |
+|---|---|
+| **FIN-MOV-001** | Posted money effects are AccountMovements only. |
+| **FIN-MOV-005** | Capital / Loan / FX keep specialized sourceTypes (not Payment/Receipt). |
+| **FIN-MOV-006** | Payment purpose SUPPLIER does not settle SupplierPayable (4.9). |
+| **FIN-MOV-007** / **008** | Payment ≠ Expense; Receipt ≠ Revenue. |
+| **FIN-MOV-014** | Cross-currency transfer forbidden — use FX Conversion. |
+| **FIN-MOV-028** | Anti-double-count matrix is authoritative. |
+
 ## Funding — FIN-FUND-*
 
 | ID | Invariant |
@@ -67,6 +82,8 @@ Operational detail: **FIN-AP-001…025** in `docs/finance-supplier-payables.md` 
 | **FIN-CASH-007** | Opening balance is traceable financial history. |
 
 Account operational detail: **FIN-ACC-001…020** in `docs/finance-accounts.md` (Phase 4.2).
+
+Money-movement operational detail: **FIN-MOV-001…028** in `docs/finance-money-movements.md` (Phase 4.6).
 
 ## Journal — FIN-JRN-*
 

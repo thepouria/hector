@@ -13,6 +13,10 @@ import { FxPositionsService } from './fx-positions.service';
 import { FxRatesService } from './fx-rates.service';
 import { LoansController } from './loans.controller';
 import { LoansService } from './loans.service';
+import { PaymentsController } from './payments.controller';
+import { PaymentsService } from './payments.service';
+import { ReceiptsController } from './receipts.controller';
+import { ReceiptsService } from './receipts.service';
 import { SupplierPayablesController } from './supplier-payables.controller';
 import { SupplierPayablesService } from './supplier-payables.service';
 
@@ -23,6 +27,7 @@ import { SupplierPayablesService } from './supplier-payables.service';
  * Phase 4.3: Capital contributions + Loans / disbursements / repayments
  * Phase 4.4: Supplier Payables (recognition on GRN POST; no cash on recognition)
  * Phase 4.5: FX rates + FX conversions + currency positions / valuation (read)
+ * Phase 4.6: Payments + Receipts (+ Transfer reuse)
  *
  * Must NOT import WarehouseModule (Warehouse → Finance only).
  */
@@ -35,6 +40,8 @@ import { SupplierPayablesService } from './supplier-payables.service';
     LoansController,
     SupplierPayablesController,
     FxController,
+    PaymentsController,
+    ReceiptsController,
   ],
   providers: [
     AccountsService,
@@ -45,6 +52,8 @@ import { SupplierPayablesService } from './supplier-payables.service';
     FxRatesService,
     FxConversionsService,
     FxPositionsService,
+    PaymentsService,
+    ReceiptsService,
   ],
   exports: [
     AccountsService,
@@ -55,6 +64,8 @@ import { SupplierPayablesService } from './supplier-payables.service';
     FxRatesService,
     FxConversionsService,
     FxPositionsService,
+    PaymentsService,
+    ReceiptsService,
   ],
 })
 export class FinanceModule {}

@@ -927,4 +927,46 @@ describe('Security regression (e2e)', () => {
 
     await database.client.fxRate.delete({ where: { id: rate.body.data.id } });
   });
+
+  it('finance payments/receipts: deny warehouse operator and cross-tenant IDOR', async () => {
+    const warehouseToken = await login(warehouseEmail);
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/payments')
+      .set('Authorization', `Bearer ${warehouseToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/receipts')
+      .set('Authorization', `Bearer ${warehouseToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(403);
+
+    const ownerToken = await login(ownerEmail);
+    const accounts = await request(app.getHttpServer())
+      .get('/api/v1/finance/accounts?pageSize=5&status=ACTIVE')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(200);
+    const accountId = accounts.body.data[0]?.id as string | undefined;
+    if (!accountId) return;
+
+    const payment = await request(app.getHttpServer())
+      .post('/api/v1/finance/payments')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({
+        accountId,
+        amount: '1000',
+        purposeType: 'OTHER',
+        requestId: randomUUID(),
+        postImmediately: false,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/finance/payments/${payment.body.data.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Company-Id', companyBId)
+      .expect(404);
+  });
 });

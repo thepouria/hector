@@ -69,13 +69,13 @@ export class AccountTransfersService {
     query: ListAccountTransfersQueryDto,
   ): Promise<{ data: AccountTransferView[]; meta: PaginationMeta }> {
     const search = normalizeSearchQuery(query.q);
+    const sourceAccountId = query.fromAccountId ?? query.sourceAccountId;
+    const destinationAccountId = query.toAccountId ?? query.destinationAccountId;
     const where: Prisma.FinancialAccountTransferWhereInput = {
       companyId: company.companyId,
       ...(query.status ? { status: query.status } : {}),
-      ...(query.sourceAccountId ? { sourceAccountId: query.sourceAccountId } : {}),
-      ...(query.destinationAccountId
-        ? { destinationAccountId: query.destinationAccountId }
-        : {}),
+      ...(sourceAccountId ? { sourceAccountId } : {}),
+      ...(destinationAccountId ? { destinationAccountId } : {}),
       ...(query.currency ? { currency: query.currency } : {}),
       ...(query.dateFrom || query.dateTo
         ? {
@@ -136,7 +136,7 @@ export class AccountTransfersService {
       throw new AppError({
         code: ERROR_CODES.ACCOUNT_TRANSFER_SAME_ACCOUNT,
         message: ACCOUNT_TRANSFER_ERROR_MESSAGES.SAME_ACCOUNT,
-        statusCode: 400,
+        statusCode: 409,
       });
     }
 

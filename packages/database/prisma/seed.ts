@@ -61,6 +61,10 @@ import {
   SupplierPayablePurchaseType,
   SupplierLiabilityMovementDirection,
   SupplierLiabilityMovementType,
+  PaymentStatus,
+  PaymentPurposeType,
+  ReceiptStatus,
+  ReceiptSourceType,
 } from '../src/generated/prisma/enums';
 import {
   OWNER_ROLE_KEY,
@@ -301,6 +305,7 @@ async function main(): Promise<void> {
     await seedFinanceAccountsForPishteh(prisma, company.id);
     await seedFinanceCapitalLoansForPishteh(prisma, company.id);
     await seedFinanceFxRatesForPishteh(prisma, company.id);
+    await seedFinancePaymentsReceiptsForPishteh(prisma, company.id);
 
     console.log('Hector database seed completed.');
     console.log(`Company: ${company.name} (${company.slug})`);
@@ -329,6 +334,9 @@ async function main(): Promise<void> {
     );
     console.log(
       'Finance FX rates seeded (USD→IRR REFERENCE 250000 + VALUATION 270000 — illustrative, not live market).',
+    );
+    console.log(
+      'Finance Payments/Receipts seeded (SEED-PAY-DRAFT-001; SEED-PAY-000001 OTHER out; SEED-REC-000001 OTHER in — standalone, no payable settlement).',
     );
     await seedWarehouseLocationsForPishteh(prisma, company.id);
     console.log('Warehouse Locations samples seeded (MAIN shelves + nested R01/S04).');
@@ -3756,6 +3764,161 @@ async function seedFinanceFxRatesForPishteh(
       },
     });
   }
+}
+
+/**
+ * Phase 4.6 — Minimal standalone Payment + Receipt examples (idempotent).
+ * Numbers use SEED-PAY- / SEED-REC- so they never collide with API sequences (PAY-/REC-).
+ * Payment purpose OTHER / Receipt source OTHER — no SupplierPayable settlement.
+ * Capital/Loan keep specialized cash posting (not wrapped as Receipt/Payment).
+ */
+async function seedFinancePaymentsReceiptsForPishteh(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'pouria@hector.local' } });
+  const mellat = await prisma.financialAccount.findUniqueOrThrow({
+    where: { companyId_code: { companyId, code: 'BANK-MELLAT-IRR' } },
+  });
+
+  const draftPaymentRequestId = 'aaaaaaaa-0004-4600-8000-000000000000';
+  const existingDraft = await prisma.payment.findFirst({
+    where: { companyId, requestId: draftPaymentRequestId },
+  });
+  if (!existingDraft) {
+    await prisma.payment.create({
+      data: {
+        companyId,
+        number: 'SEED-PAY-DRAFT-001',
+        accountId: mellat.id,
+        amount: new Prisma.Decimal('10000000'),
+        currency: CurrencyCode.IRR,
+        status: PaymentStatus.DRAFT,
+        effectiveAt: new Date('2026-03-01T00:00:00.000Z'),
+        purposeType: PaymentPurposeType.OTHER,
+        counterpartyType: FinanceCounterpartyType.OTHER,
+        counterpartyName: 'SEED draft vendor',
+        notes: 'SEED: Phase 4.6 DRAFT payment (no movement until post)',
+        requestId: draftPaymentRequestId,
+        createdById: owner.id,
+      },
+    });
+  }
+
+  const paymentRequestId = 'aaaaaaaa-0004-4600-8000-000000000001';
+  const existingPayment = await prisma.payment.findFirst({
+    where: { companyId, requestId: paymentRequestId },
+  });
+  if (!existingPayment) {
+    const payment = await prisma.payment.create({
+      data: {
+        companyId,
+        number: 'SEED-PAY-000001',
+        accountId: mellat.id,
+        amount: new Prisma.Decimal('50000000'),
+        currency: CurrencyCode.IRR,
+        status: PaymentStatus.POSTED,
+        effectiveAt: new Date('2026-03-01T00:00:00.000Z'),
+        purposeType: PaymentPurposeType.OTHER,
+        counterpartyType: FinanceCounterpartyType.OTHER,
+        counterpartyName: 'SEED utility vendor',
+        notes: 'SEED: Phase 4.6 standalone payment (not payable settlement)',
+        requestId: paymentRequestId,
+        createdById: owner.id,
+        postedAt: new Date('2026-03-01T00:00:00.000Z'),
+        postedById: owner.id,
+      },
+    });
+    await prisma.financialAccountMovement.create({
+      data: {
+        companyId,
+        accountId: mellat.id,
+        direction: FinancialAccountMovementDirection.OUT,
+        amount: payment.amount,
+        currency: CurrencyCode.IRR,
+        type: FinancialAccountMovementType.MONEY_OUT,
+        sourceType: 'PAYMENT',
+        sourceId: payment.id,
+        effectiveAt: payment.effectiveAt,
+        postedAt: payment.postedAt!,
+        description: `SEED payment ${payment.number}`,
+        createdById: owner.id,
+      },
+    });
+  }
+
+  const receiptRequestId = 'aaaaaaaa-0004-4600-8000-000000000002';
+  const existingReceipt = await prisma.receipt.findFirst({
+    where: { companyId, requestId: receiptRequestId },
+  });
+  if (!existingReceipt) {
+    const receipt = await prisma.receipt.create({
+      data: {
+        companyId,
+        number: 'SEED-REC-000001',
+        accountId: mellat.id,
+        amount: new Prisma.Decimal('75000000'),
+        currency: CurrencyCode.IRR,
+        status: ReceiptStatus.POSTED,
+        effectiveAt: new Date('2026-03-02T00:00:00.000Z'),
+        sourceType: ReceiptSourceType.OTHER,
+        counterpartyType: FinanceCounterpartyType.OTHER,
+        counterpartyName: 'SEED miscellaneous inflow',
+        notes: 'SEED: Phase 4.6 standalone receipt (not capital/loan document)',
+        requestId: receiptRequestId,
+        createdById: owner.id,
+        postedAt: new Date('2026-03-02T00:00:00.000Z'),
+        postedById: owner.id,
+      },
+    });
+    await prisma.financialAccountMovement.create({
+      data: {
+        companyId,
+        accountId: mellat.id,
+        direction: FinancialAccountMovementDirection.IN,
+        amount: receipt.amount,
+        currency: CurrencyCode.IRR,
+        type: FinancialAccountMovementType.MONEY_IN,
+        sourceType: 'RECEIPT',
+        sourceId: receipt.id,
+        effectiveAt: receipt.effectiveAt,
+        postedAt: receipt.postedAt!,
+        description: `SEED receipt ${receipt.number}`,
+        createdById: owner.id,
+      },
+    });
+  }
+
+  // Only sequence-allocated PAY-/REC- numbers advance counters (ignore SEED-* fixtures).
+  const maxPay = await prisma.payment.findMany({
+    where: { companyId, number: { startsWith: 'PAY-' } },
+    select: { number: true },
+  });
+  let payNext = 1;
+  for (const row of maxPay) {
+    const n = Number(row.number.replace(/^PAY-/, ''));
+    if (Number.isFinite(n) && n >= payNext) payNext = n + 1;
+  }
+  await prisma.paymentSequence.upsert({
+    where: { companyId },
+    create: { companyId, nextValue: payNext },
+    update: { nextValue: payNext },
+  });
+
+  const maxRec = await prisma.receipt.findMany({
+    where: { companyId, number: { startsWith: 'REC-' } },
+    select: { number: true },
+  });
+  let recNext = 1;
+  for (const row of maxRec) {
+    const n = Number(row.number.replace(/^REC-/, ''));
+    if (Number.isFinite(n) && n >= recNext) recNext = n + 1;
+  }
+  await prisma.receiptSequence.upsert({
+    where: { companyId },
+    create: { companyId, nextValue: recNext },
+    update: { nextValue: recNext },
+  });
 }
 
 /**

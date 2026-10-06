@@ -4282,3 +4282,245 @@ export async function previewFxConvert(
   return result.data;
 }
 
+
+export type FinancePayment = {
+  id: string;
+  number: string;
+  account: {
+    id: string;
+    code: string;
+    name: string;
+    currency: 'IRR' | 'USD';
+    status: string;
+  };
+  amount: string;
+  currency: 'IRR' | 'USD';
+  status: 'DRAFT' | 'POSTED' | 'CANCELLED' | 'REVERSED';
+  purposeType: string;
+  counterpartyName: string | null;
+  notes: string | null;
+  requestId: string | null;
+  postedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinanceReceipt = {
+  id: string;
+  number: string;
+  account: {
+    id: string;
+    code: string;
+    name: string;
+    currency: 'IRR' | 'USD';
+    status: string;
+  };
+  amount: string;
+  currency: 'IRR' | 'USD';
+  status: 'DRAFT' | 'POSTED' | 'CANCELLED' | 'REVERSED';
+  sourceType: string;
+  counterpartyName: string | null;
+  notes: string | null;
+  requestId: string | null;
+  postedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchAccountTransfers(
+  companyId: string,
+  params: {
+    page?: number;
+    pageSize?: number;
+    q?: string;
+    status?: string;
+    fromAccountId?: string;
+    toAccountId?: string;
+    currency?: string;
+  } = {},
+): Promise<{ data: AccountTransfer[]; meta: PaginationMeta }> {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  if (params.fromAccountId) search.set('fromAccountId', params.fromAccountId);
+  if (params.toAccountId) search.set('toAccountId', params.toAccountId);
+  if (params.currency) search.set('currency', params.currency);
+  const qs = search.toString();
+  return apiRequest(`/api/v1/finance/account-transfers${qs ? `?${qs}` : ''}`, {
+    companyId,
+  });
+}
+
+export async function fetchAccountTransfer(
+  companyId: string,
+  transferId: string,
+): Promise<AccountTransfer> {
+  const result = await apiRequest<{ data: AccountTransfer }>(
+    `/api/v1/finance/account-transfers/${transferId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function fetchPayments(
+  companyId: string,
+  params: { page?: number; pageSize?: number; q?: string; status?: string } = {},
+): Promise<{ data: FinancePayment[]; meta: PaginationMeta }> {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  const qs = search.toString();
+  return apiRequest(`/api/v1/finance/payments${qs ? `?${qs}` : ''}`, { companyId });
+}
+
+export async function fetchPayment(
+  companyId: string,
+  paymentId: string,
+): Promise<FinancePayment> {
+  const result = await apiRequest<{ data: FinancePayment }>(
+    `/api/v1/finance/payments/${paymentId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createPayment(
+  companyId: string,
+  body: {
+    accountId: string;
+    amount: string;
+    purposeType: string;
+    requestId: string;
+    counterpartyName?: string;
+    reference?: string;
+    notes?: string;
+    effectiveAt?: string;
+    postImmediately?: boolean;
+  },
+): Promise<FinancePayment> {
+  const result = await apiRequest<{ data: FinancePayment }>('/api/v1/finance/payments', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function postPayment(
+  companyId: string,
+  paymentId: string,
+): Promise<FinancePayment> {
+  const result = await apiRequest<{ data: FinancePayment }>(
+    `/api/v1/finance/payments/${paymentId}/post`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function reversePayment(
+  companyId: string,
+  paymentId: string,
+  reason: string,
+): Promise<FinancePayment> {
+  const result = await apiRequest<{ data: FinancePayment }>(
+    `/api/v1/finance/payments/${paymentId}/reverse`,
+    { method: 'POST', companyId, body: { reason } },
+  );
+  return result.data;
+}
+
+export async function cancelPayment(
+  companyId: string,
+  paymentId: string,
+): Promise<FinancePayment> {
+  const result = await apiRequest<{ data: FinancePayment }>(
+    `/api/v1/finance/payments/${paymentId}/cancel`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function fetchReceipts(
+  companyId: string,
+  params: { page?: number; pageSize?: number; q?: string; status?: string } = {},
+): Promise<{ data: FinanceReceipt[]; meta: PaginationMeta }> {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  const qs = search.toString();
+  return apiRequest(`/api/v1/finance/receipts${qs ? `?${qs}` : ''}`, { companyId });
+}
+
+export async function fetchReceipt(
+  companyId: string,
+  receiptId: string,
+): Promise<FinanceReceipt> {
+  const result = await apiRequest<{ data: FinanceReceipt }>(
+    `/api/v1/finance/receipts/${receiptId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createReceipt(
+  companyId: string,
+  body: {
+    accountId: string;
+    amount: string;
+    sourceType: string;
+    requestId: string;
+    counterpartyName?: string;
+    reference?: string;
+    notes?: string;
+    effectiveAt?: string;
+    postImmediately?: boolean;
+  },
+): Promise<FinanceReceipt> {
+  const result = await apiRequest<{ data: FinanceReceipt }>('/api/v1/finance/receipts', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function postReceipt(
+  companyId: string,
+  receiptId: string,
+): Promise<FinanceReceipt> {
+  const result = await apiRequest<{ data: FinanceReceipt }>(
+    `/api/v1/finance/receipts/${receiptId}/post`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function reverseReceipt(
+  companyId: string,
+  receiptId: string,
+  reason: string,
+): Promise<FinanceReceipt> {
+  const result = await apiRequest<{ data: FinanceReceipt }>(
+    `/api/v1/finance/receipts/${receiptId}/reverse`,
+    { method: 'POST', companyId, body: { reason } },
+  );
+  return result.data;
+}
+
+export async function cancelReceipt(
+  companyId: string,
+  receiptId: string,
+): Promise<FinanceReceipt> {
+  const result = await apiRequest<{ data: FinanceReceipt }>(
+    `/api/v1/finance/receipts/${receiptId}/cancel`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+

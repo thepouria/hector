@@ -75,6 +75,10 @@ export {
   FxRateType,
   FxRateSourceType,
   FxConversionStatus,
+  PaymentStatus,
+  ReceiptStatus,
+  PaymentPurposeType,
+  ReceiptSourceType,
 } from './generated/prisma/enums';
 export {
   PERMISSIONS,

@@ -45,12 +45,17 @@ export const ROUTES = {
   finance: '/app/finance',
   financeAccounts: '/app/finance/accounts',
   financeAccountNew: '/app/finance/accounts/new',
+  financeAccountTransfers: '/app/finance/account-transfers',
   financeAccountTransferNew: '/app/finance/account-transfers/new',
   financeCapital: '/app/finance/capital',
   financeCapitalNew: '/app/finance/capital/new',
   financeLoans: '/app/finance/loans',
   financeLoanNew: '/app/finance/loans/new',
   financePayables: '/app/finance/payables',
+  financePayments: '/app/finance/payments',
+  financePaymentNew: '/app/finance/payments/new',
+  financeReceipts: '/app/finance/receipts',
+  financeReceiptNew: '/app/finance/receipts/new',
   financeFx: '/app/finance/fx',
   financeFxRates: '/app/finance/fx/rates',
   financeFxRateNew: '/app/finance/fx/rates/new',
@@ -77,8 +82,20 @@ export function financeAccountPath(accountId: string): string {
   return `${ROUTES.financeAccounts}/${accountId}`;
 }
 
+export function financeAccountTransferPath(transferId: string): string {
+  return `${ROUTES.financeAccountTransfers}/${transferId}`;
+}
+
 export function financeCapitalPath(contributionId: string): string {
   return `${ROUTES.financeCapital}/${contributionId}`;
+}
+
+export function financePaymentPath(paymentId: string): string {
+  return `${ROUTES.financePayments}/${paymentId}`;
+}
+
+export function financeReceiptPath(receiptId: string): string {
+  return `${ROUTES.financeReceipts}/${receiptId}`;
 }
 
 export function financeLoanPath(loanId: string): string {

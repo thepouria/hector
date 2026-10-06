@@ -1,7 +1,7 @@
 /**
  * Read-only Finance integrity checks
  * (Phase 4.2 Accounts + Phase 4.3 Capital/Loans + Phase 4.4 Supplier Payables
- *  + Phase 4.5 FX + Currency).
+ *  + Phase 4.5 FX + Currency + Phase 4.6 Payments/Receipts).
  *
  * Usage from repo root:
  *   pnpm db:check:finance
@@ -512,6 +512,239 @@ async function main() {
               OR NOT EXISTS (
                 SELECT 1 FROM fx_conversions c
                 WHERE c.id = m.source_id AND c.company_id = m.company_id
+              )
+            )
+          LIMIT 20`,
+      },
+      // --- Phase 4.6 Payments + Receipts ---
+      {
+        name: 'payment_missing_out_movement',
+        sql: prisma.$queryRaw`
+          SELECT p.id FROM payments p
+          WHERE p.status = 'POSTED'
+            AND p.reversal_of_id IS NULL
+            AND (
+              SELECT COUNT(*) FROM financial_account_movements m
+              WHERE m.company_id = p.company_id
+                AND m.source_type = 'PAYMENT'
+                AND m.source_id = p.id
+                AND m.direction = 'OUT'
+                AND m.type = 'MONEY_OUT'
+                AND m.amount = p.amount
+                AND m.currency = p.currency
+            ) <> 1
+          LIMIT 20`,
+      },
+      {
+        name: 'payment_currency_mismatch',
+        sql: prisma.$queryRaw`
+          SELECT p.id FROM payments p
+          JOIN financial_accounts a ON a.id = p.account_id AND a.company_id = p.company_id
+          WHERE p.currency <> a.currency
+          LIMIT 20`,
+      },
+      {
+        name: 'orphan_payment_movement_source',
+        sql: prisma.$queryRaw`
+          SELECT m.id FROM financial_account_movements m
+          WHERE m.source_type = 'PAYMENT'
+            AND (
+              m.source_id IS NULL
+              OR NOT EXISTS (
+                SELECT 1 FROM payments p
+                WHERE p.id = m.source_id AND p.company_id = m.company_id
+              )
+            )
+          LIMIT 20`,
+      },
+      {
+        name: 'receipt_missing_in_movement',
+        sql: prisma.$queryRaw`
+          SELECT r.id FROM receipts r
+          WHERE r.status = 'POSTED'
+            AND r.reversal_of_id IS NULL
+            AND (
+              SELECT COUNT(*) FROM financial_account_movements m
+              WHERE m.company_id = r.company_id
+                AND m.source_type = 'RECEIPT'
+                AND m.source_id = r.id
+                AND m.direction = 'IN'
+                AND m.type = 'MONEY_IN'
+                AND m.amount = r.amount
+                AND m.currency = r.currency
+            ) <> 1
+          LIMIT 20`,
+      },
+      {
+        name: 'receipt_currency_mismatch',
+        sql: prisma.$queryRaw`
+          SELECT r.id FROM receipts r
+          JOIN financial_accounts a ON a.id = r.account_id AND a.company_id = r.company_id
+          WHERE r.currency <> a.currency
+          LIMIT 20`,
+      },
+      {
+        name: 'orphan_receipt_movement_source',
+        sql: prisma.$queryRaw`
+          SELECT m.id FROM financial_account_movements m
+          WHERE m.source_type = 'RECEIPT'
+            AND (
+              m.source_id IS NULL
+              OR NOT EXISTS (
+                SELECT 1 FROM receipts r
+                WHERE r.id = m.source_id AND r.company_id = m.company_id
+              )
+            )
+          LIMIT 20`,
+      },
+      {
+        name: 'payment_supplier_purpose_no_payable_allocation',
+        sql: prisma.$queryRaw`
+          SELECT p.id FROM payments p
+          WHERE p.purpose_type = 'SUPPLIER'
+            AND p.status IN ('POSTED', 'REVERSED')
+            AND EXISTS (
+              SELECT 1 FROM supplier_payment_allocations spa
+              WHERE spa.company_id = p.company_id
+                AND spa.payment_source_type = 'PAYMENT'
+                AND spa.payment_source_id = p.id
+            )
+          LIMIT 20`,
+      },
+      {
+        name: 'duplicate_payment_source_movements',
+        sql: prisma.$queryRaw`
+          SELECT source_id, company_id, direction, COUNT(*)::bigint AS n
+          FROM financial_account_movements
+          WHERE source_type = 'PAYMENT' AND source_id IS NOT NULL
+          GROUP BY source_id, company_id, direction, type
+          HAVING COUNT(*) > 1
+          LIMIT 20`,
+      },
+      {
+        name: 'duplicate_receipt_source_movements',
+        sql: prisma.$queryRaw`
+          SELECT source_id, company_id, direction, COUNT(*)::bigint AS n
+          FROM financial_account_movements
+          WHERE source_type = 'RECEIPT' AND source_id IS NOT NULL
+          GROUP BY source_id, company_id, direction, type
+          HAVING COUNT(*) > 1
+          LIMIT 20`,
+      },
+      {
+        name: 'duplicate_account_transfer_source_movements',
+        sql: prisma.$queryRaw`
+          SELECT source_id, company_id, type, COUNT(*)::bigint AS n
+          FROM financial_account_movements
+          WHERE source_type = 'ACCOUNT_TRANSFER' AND source_id IS NOT NULL
+          GROUP BY source_id, company_id, type, account_id
+          HAVING COUNT(*) > 1
+          LIMIT 20`,
+      },
+      {
+        name: 'transfer_same_account',
+        sql: prisma.$queryRaw`
+          SELECT id FROM financial_account_transfers
+          WHERE source_account_id = destination_account_id
+          LIMIT 20`,
+      },
+      {
+        name: 'payment_non_positive_amount',
+        sql: prisma.$queryRaw`
+          SELECT id FROM payments WHERE amount <= 0 LIMIT 20`,
+      },
+      {
+        name: 'receipt_non_positive_amount',
+        sql: prisma.$queryRaw`
+          SELECT id FROM receipts WHERE amount <= 0 LIMIT 20`,
+      },
+      {
+        name: 'payment_cross_company_account',
+        sql: prisma.$queryRaw`
+          SELECT p.id FROM payments p
+          JOIN financial_accounts a ON a.id = p.account_id
+          WHERE a.company_id <> p.company_id
+          LIMIT 20`,
+      },
+      {
+        name: 'receipt_cross_company_account',
+        sql: prisma.$queryRaw`
+          SELECT r.id FROM receipts r
+          JOIN financial_accounts a ON a.id = r.account_id
+          WHERE a.company_id <> r.company_id
+          LIMIT 20`,
+      },
+      {
+        name: 'payment_reversed_missing_provenance',
+        sql: prisma.$queryRaw`
+          SELECT p.id FROM payments p
+          WHERE p.status = 'REVERSED'
+            AND p.reversal_of_id IS NULL
+            AND (
+              p.reversed_at IS NULL
+              OR p.reversed_by_id IS NULL
+              OR NOT EXISTS (
+                SELECT 1 FROM payments rev
+                WHERE rev.company_id = p.company_id
+                  AND rev.reversal_of_id = p.id
+              )
+              OR (
+                SELECT COUNT(*) FROM financial_account_movements m
+                WHERE m.company_id = p.company_id
+                  AND m.source_type = 'PAYMENT'
+                  AND m.source_id = (
+                    SELECT rev.id FROM payments rev
+                    WHERE rev.company_id = p.company_id AND rev.reversal_of_id = p.id
+                    LIMIT 1
+                  )
+                  AND m.type = 'REVERSAL'
+                  AND m.direction = 'IN'
+              ) <> 1
+            )
+          LIMIT 20`,
+      },
+      {
+        name: 'receipt_reversed_missing_provenance',
+        sql: prisma.$queryRaw`
+          SELECT r.id FROM receipts r
+          WHERE r.status = 'REVERSED'
+            AND r.reversal_of_id IS NULL
+            AND (
+              r.reversed_at IS NULL
+              OR r.reversed_by_id IS NULL
+              OR NOT EXISTS (
+                SELECT 1 FROM receipts rev
+                WHERE rev.company_id = r.company_id
+                  AND rev.reversal_of_id = r.id
+              )
+              OR (
+                SELECT COUNT(*) FROM financial_account_movements m
+                WHERE m.company_id = r.company_id
+                  AND m.source_type = 'RECEIPT'
+                  AND m.source_id = (
+                    SELECT rev.id FROM receipts rev
+                    WHERE rev.company_id = r.company_id AND rev.reversal_of_id = r.id
+                    LIMIT 1
+                  )
+                  AND m.type = 'REVERSAL'
+                  AND m.direction = 'OUT'
+              ) <> 1
+            )
+          LIMIT 20`,
+      },
+      {
+        name: 'transfer_reversed_missing_provenance',
+        sql: prisma.$queryRaw`
+          SELECT t.id FROM financial_account_transfers t
+          WHERE t.status = 'REVERSED'
+            AND t.reversal_of_transfer_id IS NULL
+            AND (
+              t.reversed_at IS NULL
+              OR t.reversed_by_id IS NULL
+              OR NOT EXISTS (
+                SELECT 1 FROM financial_account_transfers rev
+                WHERE rev.company_id = t.company_id
+                  AND rev.reversal_of_transfer_id = t.id
               )
             )
           LIMIT 20`,

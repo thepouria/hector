@@ -322,3 +322,27 @@ export const financeFxKeys = {
   valuation: (companyId: string, filters: Record<string, unknown> = {}) =>
     ['finance-fx', companyId, 'valuation', filters] as const,
 };
+
+export const financePaymentKeys = {
+  all: (companyId: string) => ['finance-payments', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-payments', companyId, 'list', filters] as const,
+  detail: (companyId: string, id: string) =>
+    ['finance-payments', companyId, 'detail', id] as const,
+};
+
+export const financeReceiptKeys = {
+  all: (companyId: string) => ['finance-receipts', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-receipts', companyId, 'list', filters] as const,
+  detail: (companyId: string, id: string) =>
+    ['finance-receipts', companyId, 'detail', id] as const,
+};
+
+export const financeTransferKeys = {
+  all: (companyId: string) => ['finance-transfers', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-transfers', companyId, 'list', filters] as const,
+  detail: (companyId: string, id: string) =>
+    ['finance-transfers', companyId, 'detail', id] as const,
+};
