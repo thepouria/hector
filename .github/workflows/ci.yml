@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hector
+          POSTGRES_PASSWORD: hector_dev_password
+          POSTGRES_DB: hector
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hector -d hector"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      API_PORT: 3001
+      DATABASE_URL: postgresql://hector:hector_dev_password@localhost:5432/hector
+      CORS_ORIGINS: http://localhost:3000
+      JWT_ACCESS_SECRET: ci-test-hector-jwt-access-secret-32chars-min
+      JWT_ACCESS_TTL: 15m
+      AUTH_SESSION_TTL_DAYS: 30
+      DEV_SEED_PASSWORD: HectorDevPassword1
+      SWAGGER_ENABLED: 'false'
+      LOG_LEVEL: error
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:migrate:deploy
+      - run: pnpm db:seed
+      - run: pnpm db:check:catalog
+      - run: pnpm db:check:purchasing
+      - run: pnpm db:check:warehouse
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:security
+      - run: pnpm test:e2e
+      - run: pnpm build

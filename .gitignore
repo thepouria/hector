@@ -1,0 +1,43 @@
+# Dependencies
+node_modules
+
+# Build outputs
+.next
+dist
+out
+build
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Turbo
+.turbo
+
+# Test / coverage
+coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Misc
+*.tsbuildinfo
+.eslintcache
+
+# Prisma generated client (produced by pnpm db:generate)
+packages/database/src/generated

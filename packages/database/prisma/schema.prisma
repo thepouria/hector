@@ -1,0 +1,4125 @@
+// Hector foundation schema — Phase 0.2
+// Naming: Prisma camelCase models/fields; PostgreSQL snake_case via @@map/@map.
+
+generator client {
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  runtime       = "nodejs"
+  moduleFormat  = "cjs"
+  // Empty extension keeps Nest/CommonJS require resolution simple after tsc emit.
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("user_status")
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("company_status")
+}
+
+enum CompanyMemberStatus {
+  ACTIVE
+  SUSPENDED
+  /// Access removed while preserving historical membership identity.
+  REMOVED
+
+  @@map("company_member_status")
+}
+
+/// Company base currency only. Full multi-currency finance belongs to a later phase.
+/// Purchase Order lifecycle (Phase 2.4). Receiving/closed states arrive with Warehouse (later phases).
+/// Purchase Order lifecycle (Phase 2.9). Receiving statuses are reserved for Phase 3 Goods Receipt evidence.
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+
+  @@map("purchase_order_status")
+}
+
+/// Controlled commercial correction on a committed PO (Phase 2.11). Not cancellation/return/short-close.
+enum PurchaseCorrectionType {
+  DATA_ENTRY_ERROR
+  QUANTITY_CORRECTION
+  PRICE_CORRECTION
+  COMMERCIAL_TERM_CORRECTION
+  /// Reserved; supplier change after ORDERED is blocked in normal flow.
+  SUPPLIER_CORRECTION
+  OTHER
+
+  @@map("purchase_correction_type")
+}
+
+/// Corrections are applied immediately and become immutable history.
+enum PurchaseCorrectionStatus {
+  APPLIED
+
+  @@map("purchase_correction_status")
+}
+
+/// Purchasing-side quantity / quality discrepancy (Phase 2.11). Physical evidence is Warehouse (Phase 3).
+enum PurchaseDiscrepancyType {
+  SHORT_SHIPMENT
+  OVER_SHIPMENT
+  DAMAGED
+  WRONG_ITEM
+  MISSING
+  OTHER
+
+  @@map("purchase_discrepancy_type")
+}
+
+enum PurchaseDiscrepancySource {
+  BEFORE_RECEIPT
+  AT_RECEIPT
+  AFTER_RECEIPT
+
+  @@map("purchase_discrepancy_source")
+}
+
+enum PurchaseDiscrepancyStatus {
+  OPEN
+  RESOLVED
+  /// Remaining expected quantity intentionally closed (does not rewrite ordered quantity).
+  SHORT_CLOSED
+
+  @@map("purchase_discrepancy_status")
+}
+
+/// Commercial return intent (Phase 2.11). Physical stock exit is Warehouse (Phase 3).
+enum PurchaseReturnStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+
+  @@map("purchase_return_status")
+}
+
+enum PurchaseReturnReason {
+  DAMAGED
+  DEFECTIVE
+  WRONG_ITEM
+  OVER_SHIPMENT
+  QUALITY_ISSUE
+  EXPIRED
+  SUPPLIER_AGREEMENT
+  OTHER
+
+  @@map("purchase_return_reason")
+}
+
+/// Expected commercial resolution — not Finance execution.
+enum PurchaseReturnResolution {
+  REFUND
+  SUPPLIER_CREDIT
+  REPLACEMENT
+  PAYABLE_REDUCTION
+  UNKNOWN
+
+  @@map("purchase_return_resolution")
+}
+
+enum CurrencyCode {
+  IRR
+  USD
+
+  @@map("currency_code")
+}
+
+/// Phase 4.2 — Financial account kinds (where money sits). Not Chart of Accounts.
+enum FinancialAccountType {
+  CASH
+  BANK
+  WALLET
+  OTHER
+
+  @@map("financial_account_type")
+}
+
+enum FinancialAccountStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+
+  @@map("financial_account_status")
+}
+
+enum FinancialAccountMovementDirection {
+  IN
+  OUT
+
+  @@map("financial_account_movement_direction")
+}
+
+/// Operational movement kinds. Economic meaning lives on source documents.
+enum FinancialAccountMovementType {
+  OPENING_BALANCE
+  MONEY_IN
+  MONEY_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  REVERSAL
+
+  @@map("financial_account_movement_type")
+}
+
+enum FinancialAccountTransferStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("financial_account_transfer_status")
+}
+
+enum CapitalContributionStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("capital_contribution_status")
+}
+
+/// Equity / other funding only — LOAN is a separate entity (never this enum).
+enum CapitalFundingType {
+  OWNER_EQUITY
+  PARTNER_EQUITY
+  OTHER_FUNDING
+
+  @@map("capital_funding_type")
+}
+
+enum LoanStatus {
+  DRAFT
+  ACTIVE
+  PARTIALLY_REPAID
+  SETTLED
+  CANCELLED
+  REVERSED
+
+  @@map("loan_status")
+}
+
+enum LoanDisbursementStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("loan_disbursement_status")
+}
+
+enum LoanRepaymentStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("loan_repayment_status")
+}
+
+/// Lightweight counterparty classification for capital / loans (not a Person master).
+enum FinanceCounterpartyType {
+  MEMBER
+  PARTNER
+  EXTERNAL_PERSON
+  SUPPLIER
+  OTHER
+
+  @@map("finance_counterparty_type")
+}
+
+/// Phase 4.4 — Supplier payable lifecycle (derived from outstanding; stored for query).
+enum SupplierPayableStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+
+  @@map("supplier_payable_status")
+}
+
+/// Snapshot of commercial purchase mode at recognition (+ OPENING for opening balances).
+enum SupplierPayablePurchaseType {
+  CASH
+  TERM_CREDIT
+  FX_CREDIT
+  OPENING
+
+  @@map("supplier_payable_purchase_type")
+}
+
+/// Phase 4.5 — FX rate semantic kinds (REFERENCE ≠ CONVERSION ≠ SETTLEMENT ≠ VALUATION).
+enum FxRateType {
+  REFERENCE
+  CONVERSION
+  SETTLEMENT
+  VALUATION
+
+  @@map("fx_rate_type")
+}
+
+enum FxRateSourceType {
+  MANUAL
+  PURCHASE
+  FX_TRANSACTION
+  SETTLEMENT
+  SYSTEM
+  EXTERNAL
+
+  @@map("fx_rate_source_type")
+}
+
+enum FxConversionStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("fx_conversion_status")
+}
+
+/// Phase 4.6 — standalone money-out document (does not settle SupplierPayable).
+enum PaymentStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("payment_status")
+}
+
+enum ReceiptStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+
+  @@map("receipt_status")
+}
+
+enum PaymentPurposeType {
+  SUPPLIER
+  LOAN
+  EXPENSE
+  REFUND
+  CAPITAL_WITHDRAWAL
+  OTHER
+
+  @@map("payment_purpose_type")
+}
+
+enum ReceiptSourceType {
+  CAPITAL
+  LOAN
+  CUSTOMER
+  REFUND
+  OTHER
+
+  @@map("receipt_source_type")
+}
+
+enum SupplierLiabilityMovementDirection {
+  INCREASE
+  DECREASE
+
+  @@map("supplier_liability_movement_direction")
+}
+
+enum SupplierLiabilityMovementType {
+  PURCHASE_RECOGNITION
+  PURCHASE_CORRECTION
+  SUPPLIER_RETURN
+  PAYMENT_ALLOCATION
+  OPENING_BALANCE
+  REVERSAL
+  SUPPLIER_CREDIT
+
+  @@map("supplier_liability_movement_type")
+}
+
+enum SupplierCreditStatus {
+  OPEN
+  APPLIED
+  CANCELLED
+
+  @@map("supplier_credit_status")
+}
+
+/// Foundation for Phase 4.6 — allocation rows only (no cash yet).
+enum SupplierPaymentAllocationStatus {
+  POSTED
+
+  @@map("supplier_payment_allocation_status")
+}
+
+/// Lifecycle for Catalog Product / SKU / Brand / Category.
+/// Archive retains identity for future Purchases / Inventory / Sales references.
+enum CatalogLifecycleStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+
+  @@map("catalog_lifecycle_status")
+}
+
+/// Warehouse barcode taxonomy. EAN/UPC require checksum validation; OTHER skips format checks.
+enum BarcodeType {
+  EAN13
+  EAN8
+  UPC_A
+  CODE128
+  INTERNAL
+  OTHER
+
+  @@map("barcode_type")
+}
+
+/// Typed Product/SKU specification attribute (Phase 1.6). Values are ALWAYS optional.
+enum AttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  SINGLE_SELECT
+  MULTI_SELECT
+
+  @@map("attribute_type")
+}
+
+/// Catalog bulk command lifecycle (Phase 1.10). Sync execution today; future queue workers reuse the same statuses.
+enum BulkOperationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  PARTIALLY_COMPLETED
+  FAILED
+
+  @@map("bulk_operation_status")
+}
+
+/// Lifecycle for Purchasing Supplier (and future purchasing masters).
+/// Archive retains identity for historical PO / Offer references.
+enum PurchasingLifecycleStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+
+  @@map("purchasing_lifecycle_status")
+}
+
+/// Warehouse Master lifecycle (Phase 3.2).
+/// INACTIVE retains identity for future Locations / Receipts / Movements.
+/// No ARCHIVED — deactivation is the non-destructive retire path.
+enum WarehouseStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("warehouse_status")
+}
+
+/// Physical hierarchy metadata for WarehouseLocation (Phase 3.3).
+/// Levels may be skipped — type does not mandate a fixed ZONE→…→BIN chain.
+enum WarehouseLocationType {
+  ZONE
+  AISLE
+  RACK
+  SHELF
+  BIN
+  /// System-managed in-transit inventory position (Phase 3.11). Not a user shelf.
+  TRANSIT
+
+  @@map("warehouse_location_type")
+}
+
+/// Internal stock transfer lifecycle (Phase 3.11).
+/// DRAFT = planned, no movements. IN_TRANSIT = left source, in transit position.
+/// COMPLETED = received at destination. CANCELLED = abandoned (IN_TRANSIT returns to source).
+enum StockTransferStatus {
+  DRAFT
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+
+  @@map("stock_transfer_status")
+}
+
+/// Goods Receipt lifecycle (Phase 3.4).
+/// DRAFT = editable, does not affect PO received totals.
+/// POSTED = physical receipt fact (immutable operational quantities).
+/// CANCELLED = abandoned draft only (POSTED cannot cancel in 3.4).
+enum GoodsReceiptStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+
+  @@map("goods_receipt_status")
+}
+
+/// Putaway session lifecycle (Phase 3.8).
+/// DRAFT / IN_PROGRESS = working placement (not inventory).
+/// COMPLETED = immutable historical placement truth (not current stock).
+/// CANCELLED = abandoned before completion.
+enum PutawayStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+
+  @@map("putaway_status")
+}
+
+/// Operational inventory classification (Phase 3.12).
+/// Position dimension — same SKU/Batch/Location may hold multiple classifications.
+enum StockClassification {
+  SELLABLE
+  TESTER
+  DAMAGED
+  QUARANTINE
+
+  @@map("stock_classification")
+}
+
+/// Manual non-sales outbound reason (Phase 3.12 StockIssue).
+enum StockIssueReason {
+  COMPANY_USE
+  SAMPLE
+  DAMAGE
+  MANUAL
+  OTHER
+
+  @@map("stock_issue_reason")
+}
+
+/// StockIssue lifecycle (Phase 3.12).
+enum StockIssueStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+
+  @@map("stock_issue_status")
+}
+
+/// Manual inventory adjustment reason (Phase 3.13). Not a substitute for Issue/Transfer/Reclass.
+enum InventoryAdjustmentReason {
+  FOUND
+  MISSING
+  REGISTRATION_ERROR
+  CORRECTION
+  OTHER
+
+  @@map("inventory_adjustment_reason")
+}
+
+/// InventoryAdjustment lifecycle (Phase 3.13).
+enum InventoryAdjustmentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  POSTED
+  REJECTED
+  CANCELLED
+
+  @@map("inventory_adjustment_status")
+}
+
+/// Signed direction for adjustment lines. Quantity itself remains positive.
+enum InventoryAdjustmentDirection {
+  IN
+  OUT
+
+  @@map("inventory_adjustment_direction")
+}
+
+/// Stock count type (Phase 3.13).
+enum StockCountType {
+  FULL
+  CYCLE
+
+  @@map("stock_count_type")
+}
+
+/// StockCount lifecycle (Phase 3.13).
+enum StockCountStatus {
+  DRAFT
+  IN_PROGRESS
+  SUBMITTED
+  RECOUNT_REQUIRED
+  APPROVED
+  POSTED
+  REJECTED
+  CANCELLED
+
+  @@map("stock_count_status")
+}
+
+/// Per-line count progress (Phase 3.13).
+enum StockCountLineStatus {
+  PENDING
+  COUNTED
+  SKIPPED
+  RECOUNT_REQUIRED
+
+  @@map("stock_count_line_status")
+}
+
+/// Warehouse physical execution of an approved PurchaseReturn (Phase 3.14).
+/// DRAFT has no Ledger effect. DISPATCHED posts RETURN_OUT. No READY state —
+/// allocation is edited in DRAFT; dispatch is the sole inventory-critical command.
+enum SupplierReturnExecutionStatus {
+  DRAFT
+  DISPATCHED
+  CANCELLED
+
+  @@map("supplier_return_execution_status")
+}
+
+/// Append-only inventory ledger movement types (Phase 3.9+).
+/// Sign of quantityDelta must agree with type (enforced in SQL + posting service).
+enum InventoryMovementType {
+  RECEIVE
+  ISSUE
+  TRANSFER_OUT
+  TRANSFER_IN
+  RECLASSIFY_OUT
+  RECLASSIFY_IN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  RETURN_IN
+  RETURN_OUT
+  STOCK_COUNT_ADJUSTMENT_IN
+  STOCK_COUNT_ADJUSTMENT_OUT
+  OPENING_BALANCE
+  SYSTEM_CORRECTION
+
+  @@map("inventory_movement_type")
+}
+
+/// Business source that caused ledger movement(s). Extensible; not all workflows implemented yet.
+enum InventorySourceType {
+  PUTAWAY
+  MANUAL_ADJUSTMENT
+  TRANSFER
+  CLASSIFICATION_CHANGE
+  STOCK_ISSUE
+  SALES_FULFILLMENT
+  CUSTOMER_RETURN
+  SUPPLIER_RETURN
+  STOCK_COUNT
+  OPENING_BALANCE
+  SYSTEM_CORRECTION
+  SEED
+
+  @@map("inventory_source_type")
+}
+
+/// Reservation lifecycle (Phase 3.15). Only ACTIVE counts toward Reserved.
+enum InventoryReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+  EXPIRED
+  CANCELLED
+
+  @@map("inventory_reservation_status")
+}
+
+/// Generic commercial/source identity for reservations (Sales entities are future).
+enum InventoryReservationSourceType {
+  SALES_ORDER
+  MARKETPLACE_ORDER
+  MANUAL_OPERATION
+  OTHER
+
+  @@map("inventory_reservation_source_type")
+}
+
+/// How a cost layer entered the warehouse-scoped FIFO pool.
+enum InventoryCostLayerSourceType {
+  GOODS_RECEIPT
+  TRANSFER_IN
+  RECLASSIFY_IN
+  ADJUSTMENT_IN
+  STOCK_COUNT_ADJUSTMENT_IN
+  OPENING_BALANCE
+  SYSTEM_BOOTSTRAP
+  SEED
+
+  @@map("inventory_cost_layer_source_type")
+}
+
+/// Acquisition-cost completeness. Never represent unknown cost as confident zero.
+enum InventoryValuationStatus {
+  VALUED
+  PARTIALLY_VALUED
+  UNVALUED
+
+  @@map("inventory_valuation_status")
+}
+
+/// Why quantity left a cost layer (economic outbound vs provenance move).
+enum InventoryLayerConsumptionKind {
+  ISSUE
+  ADJUSTMENT_OUT
+  STOCK_COUNT_ADJUSTMENT_OUT
+  RETURN_OUT
+  TRANSFER_OUT
+  RECLASSIFY_OUT
+
+  @@map("inventory_layer_consumption_kind")
+}
+
+/// Commercial mode quoted by a supplier (and later used on Purchase Orders).
+enum PurchaseCommercialType {
+  CASH
+  TERM_CREDIT
+  FX_CREDIT
+
+  @@map("purchase_commercial_type")
+}
+
+/// Payment term shape for quotes / future POs. Quote stage usually uses IMMEDIATE or NET_DAYS.
+enum PaymentTermType {
+  IMMEDIATE
+  NET_DAYS
+  FIXED_DATE
+
+  @@map("payment_term_type")
+}
+
+/// Calendar basis for NET_DAYS → dueDate. Extensible later (INVOICE_DATE, RECEIPT_DATE).
+enum PurchaseTermBasis {
+  ORDER_DATE
+
+  @@map("purchase_term_basis")
+}
+
+/// Commercial acquisition cost type on a Purchase Order (Phase 2.8). Not payment state.
+enum PurchaseCostType {
+  COURIER
+  FREIGHT
+  PURCHASE_FEE
+  TRANSFER_FEE
+  PACKAGING
+  CUSTOMS
+  OTHER
+
+  @@map("purchase_cost_type")
+}
+
+/// ACTIVE costs aggregate; VOIDED rows remain for history (append-oriented corrections).
+enum PurchaseCostStatus {
+  ACTIVE
+  VOIDED
+
+  @@map("purchase_cost_status")
+}
+
+/// Future landed-cost allocation intent. Phase 2.8 stores UNALLOCATED only in practice.
+enum PurchaseCostAllocationMethod {
+  UNALLOCATED
+  BY_QUANTITY
+  BY_VALUE
+  MANUAL
+
+  @@map("purchase_cost_allocation_method")
+}
+
+/// Where an AttributeDefinition may be used. Never means "required".
+enum AttributeScope {
+  PRODUCT
+  SKU
+  BOTH
+
+  @@map("attribute_scope")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String     @unique @map("email")
+  passwordHash String     @map("password_hash")
+  firstName    String     @map("first_name")
+  lastName     String     @map("last_name")
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(3)
+
+  sessions         Session[]
+  memberships      CompanyMember[]
+  auditLogsAsActor AuditLog[]      @relation("AuditLogActor")
+  supplierNotes    SupplierNote[]
+  supplierOffers   SupplierOffer[]
+  purchaseOrdersCreated   PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersApproved  PurchaseOrder[] @relation("PurchaseOrderApprovedBy")
+  purchaseOrdersOrdered   PurchaseOrder[] @relation("PurchaseOrderOrderedBy")
+  purchaseOrdersCancelled PurchaseOrder[] @relation("PurchaseOrderCancelledBy")
+  purchaseOrderCostsCreated PurchaseOrderCost[] @relation("PurchaseOrderCostCreatedBy")
+  purchaseOrderCostsVoided  PurchaseOrderCost[] @relation("PurchaseOrderCostVoidedBy")
+  purchaseOrderCorrectionsApplied PurchaseOrderCorrection[] @relation("PurchaseOrderCorrectionAppliedBy")
+  purchaseDiscrepanciesCreated    PurchaseDiscrepancy[]     @relation("PurchaseDiscrepancyCreatedBy")
+  purchaseDiscrepanciesResolved   PurchaseDiscrepancy[]     @relation("PurchaseDiscrepancyResolvedBy")
+  purchaseReturnsCreated          PurchaseReturn[]          @relation("PurchaseReturnCreatedBy")
+  purchaseReturnsApproved         PurchaseReturn[]          @relation("PurchaseReturnApprovedBy")
+  purchaseReturnsCancelled        PurchaseReturn[]          @relation("PurchaseReturnCancelledBy")
+  goodsReceiptsCreated            GoodsReceipt[]            @relation("GoodsReceiptCreatedBy")
+  goodsReceiptsPosted             GoodsReceipt[]            @relation("GoodsReceiptPostedBy")
+  goodsReceiptsCancelled          GoodsReceipt[]            @relation("GoodsReceiptCancelledBy")
+  putawaysCreated                 Putaway[]                 @relation("PutawayCreatedBy")
+  putawaysCompleted               Putaway[]                 @relation("PutawayCompletedBy")
+  inventoryMovementsCreated       InventoryMovement[]       @relation("InventoryMovementCreatedBy")
+  stockTransfersCreated           StockTransfer[]           @relation("StockTransferCreatedBy")
+  stockTransfersDispatched        StockTransfer[]           @relation("StockTransferDispatchedBy")
+  stockTransfersCompleted         StockTransfer[]           @relation("StockTransferCompletedBy")
+  stockTransfersCancelled         StockTransfer[]           @relation("StockTransferCancelledBy")
+  stockClassificationChangesCreated StockClassificationChange[] @relation("StockClassificationChangeCreatedBy")
+  stockIssuesCreated              StockIssue[]              @relation("StockIssueCreatedBy")
+  stockIssuesPosted               StockIssue[]              @relation("StockIssuePostedBy")
+  stockIssuesCancelled            StockIssue[]              @relation("StockIssueCancelledBy")
+  inventoryAdjustmentsCreated     InventoryAdjustment[]     @relation("InventoryAdjustmentCreatedBy")
+  inventoryAdjustmentsApproved    InventoryAdjustment[]     @relation("InventoryAdjustmentApprovedBy")
+  inventoryAdjustmentsRejected    InventoryAdjustment[]     @relation("InventoryAdjustmentRejectedBy")
+  inventoryAdjustmentsPosted      InventoryAdjustment[]     @relation("InventoryAdjustmentPostedBy")
+  inventoryAdjustmentsCancelled   InventoryAdjustment[]     @relation("InventoryAdjustmentCancelledBy")
+  stockCountsCreated              StockCount[]              @relation("StockCountCreatedBy")
+  stockCountsStarted              StockCount[]              @relation("StockCountStartedBy")
+  stockCountsSubmitted            StockCount[]              @relation("StockCountSubmittedBy")
+  stockCountsApproved             StockCount[]              @relation("StockCountApprovedBy")
+  stockCountsRejected             StockCount[]              @relation("StockCountRejectedBy")
+  stockCountsPosted               StockCount[]              @relation("StockCountPostedBy")
+  stockCountsCancelled            StockCount[]              @relation("StockCountCancelledBy")
+  stockCountItemsCounted          StockCountItem[]          @relation("StockCountItemCountedBy")
+  supplierReturnExecutionsCreated    SupplierReturnExecution[] @relation("SupplierReturnExecutionCreatedBy")
+  supplierReturnExecutionsDispatched SupplierReturnExecution[] @relation("SupplierReturnExecutionDispatchedBy")
+  supplierReturnExecutionsCancelled  SupplierReturnExecution[] @relation("SupplierReturnExecutionCancelledBy")
+  inventoryReservationsCreated       InventoryReservation[]    @relation("InventoryReservationCreatedBy")
+  financialAccountsCreated           FinancialAccount[]        @relation("FinancialAccountCreatedBy")
+  financialAccountMovementsCreated   FinancialAccountMovement[] @relation("FinancialAccountMovementCreatedBy")
+  financialAccountTransfersCreated   FinancialAccountTransfer[] @relation("FinancialAccountTransferCreatedBy")
+  financialAccountTransfersPosted    FinancialAccountTransfer[] @relation("FinancialAccountTransferPostedBy")
+  financialAccountTransfersCancelled FinancialAccountTransfer[] @relation("FinancialAccountTransferCancelledBy")
+  financialAccountTransfersReversed  FinancialAccountTransfer[] @relation("FinancialAccountTransferReversedBy")
+  capitalContributionsCreated        CapitalContribution[]     @relation("CapitalContributionCreatedBy")
+  capitalContributionsPosted         CapitalContribution[]     @relation("CapitalContributionPostedBy")
+  capitalContributionsCancelled      CapitalContribution[]     @relation("CapitalContributionCancelledBy")
+  capitalContributionsReversed       CapitalContribution[]     @relation("CapitalContributionReversedBy")
+  loansCreated                       Loan[]                    @relation("LoanCreatedBy")
+  loansPosted                        Loan[]                    @relation("LoanPostedBy")
+  loansCancelled                     Loan[]                    @relation("LoanCancelledBy")
+  loansReversed                      Loan[]                    @relation("LoanReversedBy")
+  loanDisbursementsCreated           LoanDisbursement[]        @relation("LoanDisbursementCreatedBy")
+  loanDisbursementsPosted            LoanDisbursement[]        @relation("LoanDisbursementPostedBy")
+  loanDisbursementsCancelled         LoanDisbursement[]        @relation("LoanDisbursementCancelledBy")
+  loanDisbursementsReversed          LoanDisbursement[]        @relation("LoanDisbursementReversedBy")
+  loanRepaymentsCreated              LoanRepayment[]           @relation("LoanRepaymentCreatedBy")
+  loanRepaymentsPosted               LoanRepayment[]           @relation("LoanRepaymentPostedBy")
+  loanRepaymentsCancelled            LoanRepayment[]           @relation("LoanRepaymentCancelledBy")
+  loanRepaymentsReversed             LoanRepayment[]           @relation("LoanRepaymentReversedBy")
+  supplierLiabilityMovementsCreated  SupplierLiabilityMovement[] @relation("SupplierLiabilityMovementCreatedBy")
+  supplierPaymentAllocationsCreated  SupplierPaymentAllocation[] @relation("SupplierPaymentAllocationCreatedBy")
+  fxRatesCreated                     FxRate[]                    @relation("FxRateCreatedBy")
+  fxConversionsCreated               FxConversion[]              @relation("FxConversionCreatedBy")
+  fxConversionsPosted                FxConversion[]              @relation("FxConversionPostedBy")
+  fxConversionsCancelled             FxConversion[]              @relation("FxConversionCancelledBy")
+  fxConversionsReversed              FxConversion[]              @relation("FxConversionReversedBy")
+  paymentsCreated                    Payment[]                   @relation("PaymentCreatedBy")
+  paymentsPosted                     Payment[]                   @relation("PaymentPostedBy")
+  paymentsCancelled                  Payment[]                   @relation("PaymentCancelledBy")
+  paymentsReversed                   Payment[]                   @relation("PaymentReversedBy")
+  receiptsCreated                    Receipt[]                   @relation("ReceiptCreatedBy")
+  receiptsPosted                     Receipt[]                   @relation("ReceiptPostedBy")
+  receiptsCancelled                  Receipt[]                   @relation("ReceiptCancelledBy")
+  receiptsReversed                   Receipt[]                   @relation("ReceiptReversedBy")
+
+  @@index([status])
+  @@map("users")
+}
+
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent")
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, revokedAt, expiresAt])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Companies & membership
+// ---------------------------------------------------------------------------
+
+model Company {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  slug         String        @unique
+  baseCurrency CurrencyCode  @map("base_currency")
+  timezone     String
+  status       CompanyStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz(3)
+
+  members    CompanyMember[]
+  roles      Role[]
+  auditLogs  AuditLog[]
+  brands     Brand[]
+  categories Category[]
+  products   Product[]
+  skus       Sku[]
+  barcodes   Barcode[]
+  variantOptions      VariantOption[]
+  variantOptionValues VariantOptionValue[]
+  skuOptionValues     SkuOptionValue[]
+  attributeDefinitions        AttributeDefinition[]
+  attributeOptions            AttributeOption[]
+  categoryAttributes          CategoryAttribute[]
+  productAttributeValues      ProductAttributeValue[]
+  productAttributeSelections  ProductAttributeSelection[]
+  skuAttributeValues          SkuAttributeValue[]
+  skuAttributeSelections      SkuAttributeSelection[]
+  bulkOperations              BulkOperation[]
+  suppliers                   Supplier[]
+  supplierContacts            SupplierContact[]
+  supplierNotes               SupplierNote[]
+  supplierOffers              SupplierOffer[]
+  purchaseOrders              PurchaseOrder[]
+  purchaseOrderItems          PurchaseOrderItem[]
+  purchaseOrderCosts          PurchaseOrderCost[]
+  purchaseOrderSequence       PurchaseOrderSequence?
+  purchaseOrderCorrections    PurchaseOrderCorrection[]
+  purchaseDiscrepancies       PurchaseDiscrepancy[]
+  purchaseReturns             PurchaseReturn[]
+  purchaseReturnItems         PurchaseReturnItem[]
+  purchaseReturnSequence      PurchaseReturnSequence?
+  supplierReturnExecutions       SupplierReturnExecution[]
+  supplierReturnExecutionItems   SupplierReturnExecutionItem[]
+  supplierReturnExecutionSequence SupplierReturnExecutionSequence?
+  supplierReturnExecutionScanRequests SupplierReturnExecutionScanRequest[]
+  warehouses                  Warehouse[]
+  warehouseLocations          WarehouseLocation[]
+  goodsReceipts               GoodsReceipt[]
+  goodsReceiptItems           GoodsReceiptItem[]
+  goodsReceiptSequence        GoodsReceiptSequence?
+  goodsReceiptScanRequests    GoodsReceiptScanRequest[]
+  batches                     Batch[]
+  batchSequence               BatchSequence?
+  goodsReceiptItemBatches     GoodsReceiptItemBatch[]
+  putaways                    Putaway[]
+  putawayItems                PutawayItem[]
+  putawaySequence             PutawaySequence?
+  putawayScanRequests         PutawayScanRequest[]
+  inventoryMovements          InventoryMovement[]
+  inventoryBalances           InventoryBalance[]
+  stockTransfers              StockTransfer[]
+  stockTransferItems          StockTransferItem[]
+  stockTransferSequence       StockTransferSequence?
+  stockTransferScanRequests   StockTransferScanRequest[]
+  stockClassificationChanges  StockClassificationChange[]
+  stockIssues                 StockIssue[]
+  stockIssueItems             StockIssueItem[]
+  stockIssueSequence          StockIssueSequence?
+  stockIssueScanRequests      StockIssueScanRequest[]
+  inventoryAdjustments        InventoryAdjustment[]
+  inventoryAdjustmentItems    InventoryAdjustmentItem[]
+  inventoryAdjustmentSequence InventoryAdjustmentSequence?
+  stockCounts                 StockCount[]
+  stockCountItems             StockCountItem[]
+  stockCountScopeLocations    StockCountScopeLocation[]
+  stockCountScopeSkus         StockCountScopeSku[]
+  stockCountSequence          StockCountSequence?
+  stockCountScanRequests      StockCountScanRequest[]
+  inventoryAvailabilityLocks  InventoryAvailabilityLock[]
+  inventoryReservations       InventoryReservation[]
+  inventoryCostLayers         InventoryCostLayer[]
+  inventoryLayerConsumptions  InventoryLayerConsumption[]
+  financialAccounts                 FinancialAccount[]
+  financialAccountMovements         FinancialAccountMovement[]
+  financialAccountTransfers         FinancialAccountTransfer[]
+  financialAccountTransferSequence  FinancialAccountTransferSequence?
+  capitalContributions              CapitalContribution[]
+  capitalContributionSequence       CapitalContributionSequence?
+  loans                             Loan[]
+  loanSequence                      LoanSequence?
+  loanDisbursements                 LoanDisbursement[]
+  loanDisbursementSequence          LoanDisbursementSequence?
+  loanRepayments                    LoanRepayment[]
+  loanRepaymentSequence             LoanRepaymentSequence?
+  supplierPayables                  SupplierPayable[]
+  supplierPayableSequence           SupplierPayableSequence?
+  supplierPayableLines              SupplierPayableLine[]
+  supplierLiabilityMovements        SupplierLiabilityMovement[]
+  supplierCredits                   SupplierCredit[]
+  supplierCreditSequence            SupplierCreditSequence?
+  supplierPaymentAllocations        SupplierPaymentAllocation[]
+  fxRates                           FxRate[]
+  fxConversions                     FxConversion[]
+  fxConversionSequence              FxConversionSequence?
+  payments                          Payment[]
+  paymentSequence                   PaymentSequence?
+  receipts                          Receipt[]
+  receiptSequence                   ReceiptSequence?
+
+  @@index([status])
+  @@map("companies")
+}
+
+model CompanyMember {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String              @map("company_id") @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  status    CompanyMemberStatus @default(ACTIVE)
+  joinedAt  DateTime            @default(now()) @map("joined_at") @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  roles     CompanyMemberRole[]
+  auditLogs AuditLog[]          @relation("AuditLogActorMember")
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@index([companyId, status])
+  @@map("company_members")
+}
+
+// ---------------------------------------------------------------------------
+// RBAC foundation
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  name        String
+  key         String
+  description String?
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  permissions RolePermission[]
+  members     CompanyMemberRole[]
+
+  // Soft-deleted roles still occupy (companyId, key). Partial unique indexes are deferred.
+  @@unique([companyId, key])
+  @@index([companyId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model CompanyMemberRole {
+  companyMemberId String   @map("company_member_id") @db.Uuid
+  roleId          String   @map("role_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  companyMember CompanyMember @relation(fields: [companyMemberId], references: [id], onDelete: Cascade)
+  role          Role          @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([companyMemberId, roleId])
+  @@index([roleId])
+  @@map("company_member_roles")
+}
+
+// ---------------------------------------------------------------------------
+// Audit (append-only)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  actorUserId          String?  @map("actor_user_id") @db.Uuid
+  actorCompanyMemberId String?  @map("actor_company_member_id") @db.Uuid
+  action               String
+  entityType           String   @map("entity_type")
+  entityId             String?  @map("entity_id")
+  before               Json?
+  after                Json?
+  metadata             Json?
+  requestId            String?  @map("request_id")
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  actor       User?          @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorMember CompanyMember? @relation("AuditLogActorMember", fields: [actorCompanyMemberId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, entityType, entityId, createdAt])
+  @@index([companyId, actorUserId, createdAt])
+  @@index([requestId])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog foundation (Phase 1.1)
+// Operational identity is SKU — not Product. No stock/cost/price/marketplace IDs.
+// ---------------------------------------------------------------------------
+
+model Brand {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String                 @map("company_id") @db.Uuid
+  name           String
+  /// Lowercased / NFKC uniqueness key. Display `name` is preserved separately.
+  normalizedName String                 @map("normalized_name")
+  /// Optional human-readable brand code. Unique within company when set (NULL allowed multiple times).
+  code           String?
+  status         CatalogLifecycleStatus @default(ACTIVE)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt     DateTime?              @map("archived_at") @db.Timestamptz(3)
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  products Product[]
+
+  /// Supports composite FKs from Product so Brand and Product share companyId.
+  @@unique([id, companyId])
+  @@unique([companyId, normalizedName])
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, name])
+  @@map("brands")
+}
+
+model Category {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String                 @map("company_id") @db.Uuid
+  name           String
+  /// Lowercased / NFKC uniqueness key for sibling uniqueness.
+  normalizedName String                 @map("normalized_name")
+  /// Optional internal category code. Unique within company when set.
+  code           String?
+  parentId       String?                @map("parent_id") @db.Uuid
+  /// Sibling ordering within a parent (deterministic: sortOrder ASC, name ASC).
+  sortOrder      Int                    @default(0) @map("sort_order")
+  status         CatalogLifecycleStatus @default(ACTIVE)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt     DateTime?              @map("archived_at") @db.Timestamptz(3)
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  parent   Category?  @relation("CategoryTree", fields: [parentId, companyId], references: [id, companyId], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+  categoryAttributes CategoryAttribute[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, name])
+  @@index([companyId, parentId])
+  @@index([companyId, normalizedName])
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Product {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String                 @map("company_id") @db.Uuid
+  name           String
+  /// Search / sort key. Display `name` is preserved separately.
+  normalizedName String                 @map("normalized_name")
+  /// Optional internal product code (e.g. FAN-SL). Stored uppercase.
+  code           String?
+  /// Uniqueness key for optional code (uppercase). NULL allowed multiple times.
+  normalizedCode String?                @map("normalized_code")
+  description    String?
+  brandId        String?                @map("brand_id") @db.Uuid
+  /// One primary category per product (operational classification, not SEO taxonomy).
+  categoryId     String?                @map("category_id") @db.Uuid
+  status         CatalogLifecycleStatus @default(ACTIVE)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt     DateTime?              @map("archived_at") @db.Timestamptz(3)
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  brand    Brand?    @relation(fields: [brandId, companyId], references: [id, companyId], onDelete: Restrict)
+  category Category? @relation(fields: [categoryId, companyId], references: [id, companyId], onDelete: Restrict)
+  skus           Sku[]
+  variantOptions VariantOption[]
+  attributeValues ProductAttributeValue[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, normalizedCode])
+  @@index([companyId, status])
+  @@index([companyId, name])
+  @@index([companyId, normalizedName])
+  @@index([companyId, brandId])
+  @@index([companyId, categoryId])
+  @@map("products")
+}
+
+/// SKU is Hector's operational identity (purchase / inventory / sales / marketplace mapping).
+model Sku {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  /// Company-scoped human-readable operational code (stored uppercase). Not the PK.
+  code String
+  /// Uniqueness key for code (uppercase). Company-unique permanently (incl. archived).
+  normalizedCode String @map("normalized_code")
+  /// Optional variant display label (e.g. "رنگ 02"). Null for simple single-SKU products.
+  name String?
+  /// Deterministic variant combination key. `SIMPLE` for zero-option products.
+  /// Format for variants: sorted `optionId:valueId` joined by `|`.
+  variantSignature String                 @map("variant_signature")
+  status           CatalogLifecycleStatus @default(ACTIVE)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt       DateTime?              @map("archived_at") @db.Timestamptz(3)
+
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  product        Product          @relation(fields: [productId, companyId], references: [id, companyId], onDelete: Restrict)
+  barcodes       Barcode[]
+  optionValues   SkuOptionValue[]
+  supplierOffers SupplierOffer[]
+  purchaseOrderItems PurchaseOrderItem[]
+  purchaseReturnItems PurchaseReturnItem[]
+  goodsReceiptItems   GoodsReceiptItem[]
+  goodsReceiptItemBatches GoodsReceiptItemBatch[]
+  batches             Batch[]
+  attributeValues SkuAttributeValue[]
+  inventoryMovements InventoryMovement[]
+  inventoryBalances  InventoryBalance[]
+  stockTransferItems StockTransferItem[]
+  stockClassificationChanges StockClassificationChange[]
+  stockIssueItems            StockIssueItem[]
+  inventoryAdjustmentItems   InventoryAdjustmentItem[]
+  stockCountItems            StockCountItem[]
+  stockCountScopeSkus        StockCountScopeSku[]
+  supplierReturnExecutionItems SupplierReturnExecutionItem[]
+  inventoryAvailabilityLocks InventoryAvailabilityLock[]
+  inventoryReservations      InventoryReservation[]
+  inventoryCostLayers        InventoryCostLayer[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, normalizedCode])
+  @@unique([productId, variantSignature])
+  @@index([companyId, status])
+  @@index([productId])
+  @@index([companyId, productId])
+  @@map("skus")
+}
+
+/// Product-scoped dimension that differentiates SKUs (e.g. رنگ / سایز). Not a global attribute.
+model VariantOption {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  name           String
+  normalizedName String   @map("normalized_name")
+  position       Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  product Product              @relation(fields: [productId, companyId], references: [id, companyId], onDelete: Restrict)
+  values  VariantOptionValue[]
+  skuLinks SkuOptionValue[]
+
+  @@unique([id, companyId])
+  @@unique([id, productId])
+  @@unique([productId, normalizedName])
+  @@index([companyId, productId])
+  @@index([productId, position])
+  @@map("variant_options")
+}
+
+/// Allowed value for a VariantOption (e.g. 01, Black, بی‌رنگ).
+model VariantOptionValue {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  optionId        String   @map("option_id") @db.Uuid
+  value           String
+  normalizedValue String   @map("normalized_value")
+  position        Int      @default(0)
+  /// Soft availability for new SKU assignment. Existing SKU links remain readable.
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  option   VariantOption    @relation(fields: [optionId, companyId], references: [id, companyId], onDelete: Restrict)
+  skuLinks SkuOptionValue[]
+
+  @@unique([id, companyId])
+  @@unique([id, optionId])
+  @@unique([optionId, normalizedValue])
+  @@index([companyId, optionId])
+  @@index([optionId, position])
+  @@map("variant_option_values")
+}
+
+/// Join: SKU selects exactly one value per VariantOption of its Product.
+model SkuOptionValue {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  skuId         String   @map("sku_id") @db.Uuid
+  /// Denormalized for uniqueness: one value per option per SKU.
+  optionId      String   @map("option_id") @db.Uuid
+  optionValueId String   @map("option_value_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sku         Sku                @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  option      VariantOption      @relation(fields: [optionId, companyId], references: [id, companyId], onDelete: Restrict)
+  optionValue VariantOptionValue @relation(fields: [optionValueId, optionId], references: [id, optionId], onDelete: Restrict)
+
+  @@unique([skuId, optionId])
+  @@unique([skuId, optionValueId])
+  @@index([optionValueId])
+  @@index([companyId, skuId])
+  @@map("sku_option_values")
+}
+
+/// Scannable identifier that resolves to a SKU within a company. A SKU may have many barcodes.
+/// Value is immutable after create; archive + recreate to correct mistakes.
+model Barcode {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String      @map("company_id") @db.Uuid
+  skuId           String      @map("sku_id") @db.Uuid
+  /// Display / label / scanner-facing representation (immutable).
+  value           String
+  /// Company-unique lookup key (type-aware normalization). Never reused after archive.
+  normalizedValue String      @map("normalized_value")
+  type            BarcodeType @default(OTHER)
+  isPrimary       Boolean     @default(false) @map("is_primary")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Soft-archive. Archived values remain reserved and do not resolve operationally.
+  archivedAt      DateTime?   @map("archived_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sku     Sku     @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, normalizedValue])
+  @@index([skuId])
+  @@index([companyId, skuId])
+  @@index([companyId, type])
+  @@map("barcodes")
+}
+
+// ---------------------------------------------------------------------------
+// Product Attributes (Phase 1.6)
+// Attribute values are ALWAYS optional. CategoryAttribute is suggestion-only.
+// Never require Product/SKU attribute completeness for create/update/activate.
+// ---------------------------------------------------------------------------
+
+/// Company-scoped specification definition (reusable across Categories).
+model AttributeDefinition {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String                 @map("company_id") @db.Uuid
+  name           String
+  normalizedName String                 @map("normalized_name")
+  /// Stable integration identity (e.g. spf, volume). Unique within company.
+  code           String
+  normalizedCode String                 @map("normalized_code")
+  type           AttributeType
+  scope          AttributeScope         @default(PRODUCT)
+  /// Optional display unit for NUMBER (e.g. ml, g). Metadata only.
+  unit           String?
+  description    String?
+  status         CatalogLifecycleStatus @default(ACTIVE)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt     DateTime?              @map("archived_at") @db.Timestamptz(3)
+
+  company            Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  options            AttributeOption[]
+  categoryAttributes CategoryAttribute[]
+  productValues      ProductAttributeValue[]
+  skuValues          SkuAttributeValue[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, normalizedCode])
+  @@index([companyId, normalizedName])
+  @@index([companyId, type])
+  @@index([companyId, scope])
+  @@index([companyId, status])
+  @@map("attribute_definitions")
+}
+
+/// Selectable option for SINGLE_SELECT / MULTI_SELECT AttributeDefinitions.
+model AttributeOption {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  attributeDefinitionId String   @map("attribute_definition_id") @db.Uuid
+  value                 String
+  normalizedValue       String   @map("normalized_value")
+  position              Int      @default(0)
+  /// Soft availability for new selection. Existing Product/SKU selections remain readable.
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company             Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  attributeDefinition AttributeDefinition         @relation(fields: [attributeDefinitionId, companyId], references: [id, companyId], onDelete: Restrict)
+  productSelections   ProductAttributeSelection[]
+  skuSelections       SkuAttributeSelection[]
+
+  @@unique([id, companyId])
+  @@unique([id, attributeDefinitionId])
+  @@unique([attributeDefinitionId, normalizedValue])
+  @@index([attributeDefinitionId, position])
+  @@index([companyId, attributeDefinitionId])
+  @@map("attribute_options")
+}
+
+/// Suggested/recommended Attribute for a Category (never required).
+model CategoryAttribute {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  categoryId            String   @map("category_id") @db.Uuid
+  attributeDefinitionId String   @map("attribute_definition_id") @db.Uuid
+  position              Int      @default(0)
+  /// Controls Product form suggestion visibility. Does not delete data.
+  isVisible             Boolean  @default(true) @map("is_visible")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company             Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category            Category            @relation(fields: [categoryId, companyId], references: [id, companyId], onDelete: Restrict)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([categoryId, attributeDefinitionId])
+  @@index([categoryId, position])
+  @@index([attributeDefinitionId])
+  @@index([companyId, categoryId])
+  @@map("category_attributes")
+}
+
+/// Typed Product Attribute value container. Absence of a row = unspecified (valid).
+model ProductAttributeValue {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  productId             String   @map("product_id") @db.Uuid
+  attributeDefinitionId String   @map("attribute_definition_id") @db.Uuid
+  textValue             String?  @map("text_value")
+  numberValue           Decimal? @map("number_value") @db.Decimal(18, 6)
+  booleanValue          Boolean? @map("boolean_value")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company             Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  product             Product                     @relation(fields: [productId, companyId], references: [id, companyId], onDelete: Restrict)
+  attributeDefinition AttributeDefinition         @relation(fields: [attributeDefinitionId, companyId], references: [id, companyId], onDelete: Restrict)
+  selections          ProductAttributeSelection[]
+
+  @@unique([productId, attributeDefinitionId])
+  @@index([attributeDefinitionId])
+  @@index([companyId, productId])
+  @@map("product_attribute_values")
+}
+
+/// Selected options for SINGLE_SELECT / MULTI_SELECT ProductAttributeValue.
+model ProductAttributeSelection {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId               String   @map("company_id") @db.Uuid
+  productAttributeValueId String   @map("product_attribute_value_id") @db.Uuid
+  attributeOptionId       String   @map("attribute_option_id") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company               Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  productAttributeValue ProductAttributeValue @relation(fields: [productAttributeValueId], references: [id], onDelete: Cascade)
+  attributeOption       AttributeOption       @relation(fields: [attributeOptionId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([productAttributeValueId, attributeOptionId])
+  @@index([attributeOptionId])
+  @@index([companyId, productAttributeValueId])
+  @@map("product_attribute_selections")
+}
+
+/// Typed SKU Attribute value container. Absence of a row = unspecified (valid).
+model SkuAttributeValue {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  skuId                 String   @map("sku_id") @db.Uuid
+  attributeDefinitionId String   @map("attribute_definition_id") @db.Uuid
+  textValue             String?  @map("text_value")
+  numberValue           Decimal? @map("number_value") @db.Decimal(18, 6)
+  booleanValue          Boolean? @map("boolean_value")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sku                 Sku                     @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  attributeDefinition AttributeDefinition     @relation(fields: [attributeDefinitionId, companyId], references: [id, companyId], onDelete: Restrict)
+  selections          SkuAttributeSelection[]
+
+  @@unique([skuId, attributeDefinitionId])
+  @@index([attributeDefinitionId])
+  @@index([companyId, skuId])
+  @@map("sku_attribute_values")
+}
+
+/// Selected options for SINGLE_SELECT / MULTI_SELECT SkuAttributeValue.
+model SkuAttributeSelection {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String   @map("company_id") @db.Uuid
+  skuAttributeValueId String   @map("sku_attribute_value_id") @db.Uuid
+  attributeOptionId   String   @map("attribute_option_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  skuAttributeValue SkuAttributeValue @relation(fields: [skuAttributeValueId], references: [id], onDelete: Cascade)
+  attributeOption   AttributeOption   @relation(fields: [attributeOptionId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([skuAttributeValueId, attributeOptionId])
+  @@index([attributeOptionId])
+  @@index([companyId, skuAttributeValueId])
+  @@map("sku_attribute_selections")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog bulk operations (Phase 1.10)
+// Parent command record for Audit / troubleshooting. Does NOT store huge ID arrays.
+// ---------------------------------------------------------------------------
+
+model BulkOperation {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String              @map("company_id") @db.Uuid
+  actorUserId       String?             @map("actor_user_id") @db.Uuid
+  /// Discriminated bulk command type (e.g. PRODUCT_CHANGE_CATEGORY).
+  type              String
+  status            BulkOperationStatus
+  selectionMode     String              @map("selection_mode")
+  selectionSummary  Json?               @map("selection_summary")
+  payloadSummary    Json?               @map("payload_summary")
+  matchedCount      Int                 @default(0) @map("matched_count")
+  successCount      Int                 @default(0) @map("success_count")
+  failureCount      Int                 @default(0) @map("failure_count")
+  skippedCount      Int                 @default(0) @map("skipped_count")
+  resultSummary     Json?               @map("result_summary")
+  startedAt         DateTime?           @map("started_at") @db.Timestamptz(3)
+  completedAt       DateTime?           @map("completed_at") @db.Timestamptz(3)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, status, createdAt])
+  @@map("bulk_operations")
+}
+
+// ---------------------------------------------------------------------------
+// Purchasing — Supplier Master (Phase 2.2)
+// Canonical supplier identity. No balances, prices, POs, or stock.
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id         String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String                    @map("company_id") @db.Uuid
+  /// Human-readable display name (Persian/Latin). Not unique — not identity.
+  name       String
+  legalName  String?                   @map("legal_name")
+  /// Optional company-scoped human code. Unique when set (NULL allowed many times).
+  code       String?
+  status     PurchasingLifecycleStatus @default(ACTIVE)
+  phone      String?
+  email      String?
+  /// Simple free-text address (no geography tables).
+  address    String?
+  createdAt  DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt DateTime?                 @map("archived_at") @db.Timestamptz(3)
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contacts SupplierContact[]
+  notes    SupplierNote[]
+  offers   SupplierOffer[]
+  purchaseOrders PurchaseOrder[]
+  purchaseOrderCosts PurchaseOrderCost[]
+  purchaseReturns PurchaseReturn[]
+  goodsReceipts   GoodsReceipt[]
+  supplierPayables           SupplierPayable[]
+  supplierLiabilityMovements SupplierLiabilityMovement[]
+  supplierCredits            SupplierCredit[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, name])
+  @@index([companyId, updatedAt])
+  @@map("suppliers")
+}
+
+model SupplierContact {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  supplierId String    @map("supplier_id") @db.Uuid
+  name       String
+  /// Free-text role/title (فروش، حسابداری، …). Not a rigid enum.
+  role       String?
+  phone      String?
+  mobile     String?
+  email      String?
+  isPrimary  Boolean   @default(false) @map("is_primary")
+  notes      String?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier Supplier        @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  offers   SupplierOffer[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([id, companyId])
+  @@index([companyId, supplierId])
+  @@index([supplierId, isPrimary])
+  @@map("supplier_contacts")
+}
+
+model SupplierNote {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  supplierId  String   @map("supplier_id") @db.Uuid
+  body        String
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier  Supplier @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([companyId, supplierId, createdAt])
+  @@map("supplier_notes")
+}
+
+// ---------------------------------------------------------------------------
+// Purchasing — Supplier Offers / Price Quotes (Phase 2.3)
+// Historical commercial observations. Not POs, payments, or inventory.
+// ---------------------------------------------------------------------------
+
+model SupplierOffer {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String @map("company_id") @db.Uuid
+  supplierId String @map("supplier_id") @db.Uuid
+  skuId      String @map("sku_id") @db.Uuid
+  /// Optional contact who provided the quote (same Supplier).
+  supplierContactId String? @map("supplier_contact_id") @db.Uuid
+
+  /// Unit price in `currency`. IRR = rials (Toman is display-only). JSON API uses string.
+  unitPrice Decimal      @map("unit_price") @db.Decimal(24, 6)
+  currency  CurrencyCode
+
+  purchaseType    PurchaseCommercialType? @map("purchase_type")
+  paymentTermType PaymentTermType?        @map("payment_term_type")
+  /// Days for NET_DAYS terms. Not a concrete due date (no purchase yet).
+  netDays Int? @map("net_days")
+
+  /// Quantity Ahmad asked about for this quote (historical context).
+  quotedQuantity Int? @map("quoted_quantity")
+  /// Supplier MOQ for this quote, if stated.
+  minimumQuantity Int? @map("minimum_quantity")
+  /// Supplier-reported availability at quote time — NOT company stock.
+  availableQuantity Int? @map("available_quantity")
+
+  /// Optional reference FX rate for valuation only (never replaces foreign obligation).
+  referenceFxRate          Decimal?      @map("reference_fx_rate") @db.Decimal(24, 8)
+  referenceFxBaseCurrency  CurrencyCode? @map("reference_fx_base_currency")
+  referenceFxQuoteCurrency CurrencyCode? @map("reference_fx_quote_currency")
+
+  /// When the supplier gave the quote (may differ from createdAt).
+  quotedAt   DateTime  @map("quoted_at") @db.Timestamptz(3)
+  validUntil DateTime? @map("valid_until") @db.Timestamptz(3)
+  notes      String?
+
+  createdById String    @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier        Supplier         @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku             Sku              @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplierContact SupplierContact? @relation(fields: [supplierContactId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy       User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@unique([id, companyId])
+  @@index([companyId, quotedAt])
+  @@index([companyId, supplierId, quotedAt])
+  @@index([companyId, skuId, quotedAt])
+  @@index([companyId, currency, quotedAt])
+  @@index([supplierId, skuId, quotedAt])
+  @@index([companyId, validUntil])
+  @@map("supplier_offers")
+}
+
+/// Company-scoped monotonic counter for Purchase Order numbers (allocated in the create transaction).
+model PurchaseOrderSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  /// Next value to hand out. Allocation: atomic UPSERT in the same transaction as PO create.
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_order_sequences")
+}
+
+/// Purchasing commitment document (Phase 2.4). No receiving, payments, or costs yet.
+model PurchaseOrder {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  /// Human number, e.g. PO-2026-000001. Unique per company.
+  number    String
+  supplierId        String  @map("supplier_id") @db.Uuid
+  supplierContactId String? @map("supplier_contact_id") @db.Uuid
+
+  status   PurchaseOrderStatus @default(DRAFT)
+  currency CurrencyCode
+
+  /// Commercial purchase mode (Phase 2.5). Required before APPROVED/ORDERED.
+  purchaseType    PurchaseCommercialType? @map("purchase_type")
+  paymentTermType PaymentTermType?        @map("payment_term_type")
+  netDays         Int?                    @map("net_days")
+  /// Basis for computing dueDate from netDays. ORDER_DATE in 2.5.
+  termBasis       PurchaseTermBasis?      @map("term_basis")
+  /// Commercial due date (not proof of payment).
+  /// NET_DAYS: server-calculated from termBasis + netDays. FIXED_DATE: explicit agreed date.
+  /// Stored as Timestamptz at UTC noon for the business calendar day (avoids TZ day-shift).
+  dueDate         DateTime?               @map("due_date") @db.Timestamptz(3)
+
+  /// FX_CREDIT foreign obligation (authoritative). For CASH/TERM_CREDIT these stay null;
+  /// obligation is `total` in `currency`.
+  obligationAmount   Decimal?      @map("obligation_amount") @db.Decimal(24, 6)
+  obligationCurrency CurrencyCode? @map("obligation_currency")
+
+  /// Reference FX at purchase time (valuation only — never settlement rate).
+  referenceFxRate          Decimal?      @map("reference_fx_rate") @db.Decimal(24, 8)
+  referenceFxBaseCurrency  CurrencyCode? @map("reference_fx_base_currency")
+  referenceFxQuoteCurrency CurrencyCode? @map("reference_fx_quote_currency")
+  /// When the reference rate was agreed/observed (may differ from orderDate).
+  referenceFxRateAt        DateTime?     @map("reference_fx_rate_at") @db.Timestamptz(3)
+
+  /// Business calendar date for the supplier order (credit-term ORDER_DATE basis).
+  /// Distinct from orderedAt (system timestamp when status became ORDERED).
+  orderDate          DateTime  @map("order_date") @db.Timestamptz(3)
+  expectedAt         DateTime? @map("expected_at") @db.Timestamptz(3)
+  /// Optional supplier-side reference (invoice / market order / agreement id).
+  supplierOrderReference String? @map("supplier_order_reference")
+  notes              String?
+  /// Optional free-text context for payment terms (not structured authority).
+  paymentTermsNote   String?   @map("payment_terms_note")
+  cancellationReason String?   @map("cancellation_reason")
+
+  /// Server-computed. IRR = rials. Stored with Decimal(24,6).
+  subtotal Decimal @db.Decimal(24, 6)
+  /// Equals subtotal in Phase 2.4 (costs/discounts arrive later).
+  total    Decimal @db.Decimal(24, 6)
+
+  /// Frozen when the PO becomes ORDERED.
+  supplierNameSnapshot String? @map("supplier_name_snapshot")
+  supplierCodeSnapshot String? @map("supplier_code_snapshot")
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  approvedById  String? @map("approved_by_id") @db.Uuid
+  orderedById   String? @map("ordered_by_id") @db.Uuid
+  cancelledById String? @map("cancelled_by_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(3)
+  orderedAt   DateTime? @map("ordered_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  /// Optimistic concurrency token. Incremented on every successful mutation.
+  version Int @default(1)
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier        Supplier         @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplierContact SupplierContact? @relation(fields: [supplierContactId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy       User             @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy      User?            @relation("PurchaseOrderApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  orderedBy       User?            @relation("PurchaseOrderOrderedBy", fields: [orderedById], references: [id], onDelete: Restrict)
+  cancelledBy     User?            @relation("PurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items           PurchaseOrderItem[]
+  costs           PurchaseOrderCost[]
+  corrections     PurchaseOrderCorrection[]
+  discrepancies   PurchaseDiscrepancy[]
+  returns         PurchaseReturn[]
+  goodsReceipts   GoodsReceipt[]
+  supplierPayables SupplierPayable[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, orderDate])
+  @@index([companyId, supplierId, orderDate])
+  @@index([companyId, dueDate])
+  @@index([companyId, purchaseType, dueDate])
+  @@map("purchase_orders")
+}
+
+/// PO-level commercial acquisition cost (Phase 2.8). Not paid/payable state; not allocated to stock.
+model PurchaseOrderCost {
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String @map("company_id") @db.Uuid
+  purchaseOrderId String @map("purchase_order_id") @db.Uuid
+
+  type        PurchaseCostType
+  status      PurchaseCostStatus @default(ACTIVE)
+  description String?
+  amount      Decimal            @db.Decimal(24, 6)
+  currency    CurrencyCode
+
+  /// Business calendar date the cost was incurred (UTC noon Timestamptz).
+  costDate DateTime @map("cost_date") @db.Timestamptz(3)
+
+  /// Lightweight payee label (not a Finance Party). May differ from PO supplier.
+  payeeName String? @map("payee_name")
+  /// Optional receipt / tracking / invoice reference.
+  reference String?
+  notes     String?
+
+  allocationMethod PurchaseCostAllocationMethod @default(UNALLOCATED) @map("allocation_method")
+
+  /// Optional link when the PO supplier charged this cost. Never required.
+  supplierId String? @map("supplier_id") @db.Uuid
+
+  createdById String  @map("created_by_id") @db.Uuid
+  voidedById  String? @map("voided_by_id") @db.Uuid
+  voidReason  String? @map("void_reason")
+  voidedAt    DateTime? @map("voided_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplier      Supplier?     @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy     User          @relation("PurchaseOrderCostCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  voidedBy      User?         @relation("PurchaseOrderCostVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, purchaseOrderId, status])
+  @@index([companyId, costDate])
+  @@index([companyId, type, status])
+  @@map("purchase_order_costs")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String @map("company_id") @db.Uuid
+  purchaseOrderId String @map("purchase_order_id") @db.Uuid
+  skuId           String @map("sku_id") @db.Uuid
+
+  /// Ordered quantity (> 0). Never rewritten by receipts (Warehouse owns receipts).
+  /// Short shipment / short-close must not silently rewrite this value.
+  quantity     Int
+  unitPrice    Decimal @map("unit_price") @db.Decimal(24, 6)
+  /// quantity * unitPrice, server-computed.
+  lineSubtotal Decimal @map("line_subtotal") @db.Decimal(24, 6)
+
+  /// Purchasing projection: intentionally closed unfulfilled qty (short-close).
+  /// NOT received quantity (Warehouse) and NOT returned quantity (Warehouse execution).
+  /// Invariant: 0 <= closedUnfulfilledQuantity <= quantity.
+  closedUnfulfilledQuantity Int @default(0) @map("closed_unfulfilled_quantity")
+
+  /// Optional reference to the quote that informed the price. Price may differ.
+  supplierOfferId String? @map("supplier_offer_id") @db.Uuid
+  notes           String?
+
+  /// Frozen when the PO becomes ORDERED.
+  skuCodeSnapshot      String? @map("sku_code_snapshot")
+  productNameSnapshot  String? @map("product_name_snapshot")
+  variantLabelSnapshot String? @map("variant_label_snapshot")
+  productIdSnapshot    String? @map("product_id_snapshot") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku           Sku            @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplierOffer SupplierOffer? @relation(fields: [supplierOfferId, companyId], references: [id, companyId], onDelete: Restrict)
+  corrections   PurchaseOrderCorrection[]
+  discrepancies PurchaseDiscrepancy[]
+  returnItems   PurchaseReturnItem[]
+  goodsReceiptItems GoodsReceiptItem[]
+  supplierPayableLines SupplierPayableLine[]
+
+  @@unique([id, companyId])
+  @@unique([purchaseOrderId, skuId])
+  @@index([companyId, skuId])
+  @@index([companyId, purchaseOrderId])
+  @@index([supplierOfferId])
+  @@map("purchase_order_items")
+}
+
+// ---------------------------------------------------------------------------
+// Purchasing — Returns / Corrections / Discrepancies (Phase 2.11)
+// Commercial truth + intent. No Warehouse stock / Finance refunds.
+// ---------------------------------------------------------------------------
+
+/// Immutable applied correction history for committed POs.
+model PurchaseOrderCorrection {
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String                   @map("company_id") @db.Uuid
+  purchaseOrderId       String                   @map("purchase_order_id") @db.Uuid
+  /// Null when correction is PO-header scoped (credit terms / FX).
+  purchaseOrderItemId   String?                  @map("purchase_order_item_id") @db.Uuid
+
+  type   PurchaseCorrectionType
+  status PurchaseCorrectionStatus @default(APPLIED)
+  reason String
+
+  /// Structured before/after commercial snapshots (not arbitrary ORM patch).
+  beforeSnapshot Json @map("before_snapshot")
+  afterSnapshot  Json @map("after_snapshot")
+
+  /// Optimistic concurrency of the PO at apply time.
+  purchaseOrderVersion Int @map("purchase_order_version")
+
+  appliedById String   @map("applied_by_id") @db.Uuid
+  appliedAt   DateTime @default(now()) @map("applied_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrder     PurchaseOrder      @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId, companyId], references: [id, companyId], onDelete: Restrict)
+  appliedBy         User               @relation("PurchaseOrderCorrectionAppliedBy", fields: [appliedById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, purchaseOrderId, appliedAt])
+  @@index([companyId, purchaseOrderItemId])
+  @@map("purchase_order_corrections")
+}
+
+/// Purchasing discrepancy / shortage record. Does not rewrite ordered quantity.
+model PurchaseDiscrepancy {
+  id                  String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String                     @map("company_id") @db.Uuid
+  purchaseOrderId     String                     @map("purchase_order_id") @db.Uuid
+  purchaseOrderItemId String                     @map("purchase_order_item_id") @db.Uuid
+
+  type   PurchaseDiscrepancyType
+  source PurchaseDiscrepancySource
+  status PurchaseDiscrepancyStatus @default(OPEN)
+
+  /// Discrepancy quantity in ordered units (> 0). Not received qty rewrite.
+  quantity Int
+  reason   String
+  notes    String?
+
+  createdById  String    @map("created_by_id") @db.Uuid
+  resolvedById String?   @map("resolved_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy         User              @relation("PurchaseDiscrepancyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  resolvedBy        User?             @relation("PurchaseDiscrepancyResolvedBy", fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, purchaseOrderId, status])
+  @@index([companyId, purchaseOrderItemId, status])
+  @@map("purchase_discrepancies")
+}
+
+model PurchaseReturnSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_return_sequences")
+}
+
+/// Commercial return intent. APPROVED ≠ stock decreased / supplier refunded.
+model PurchaseReturn {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String  @map("company_id") @db.Uuid
+  /// Human number, e.g. PR-2026-000001. Unique per company.
+  number          String
+  supplierId      String  @map("supplier_id") @db.Uuid
+  /// Required when return originates from a purchase (normal path).
+  purchaseOrderId String? @map("purchase_order_id") @db.Uuid
+
+  status           PurchaseReturnStatus     @default(DRAFT)
+  reason           PurchaseReturnReason
+  expectedResolution PurchaseReturnResolution @default(UNKNOWN) @map("expected_resolution")
+  notes            String?
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  approvedById  String? @map("approved_by_id") @db.Uuid
+  cancelledById String? @map("cancelled_by_id") @db.Uuid
+  cancellationReason String? @map("cancellation_reason")
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  version Int @default(1)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier      Supplier       @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy     User           @relation("PurchaseReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy    User?          @relation("PurchaseReturnApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  cancelledBy   User?          @relation("PurchaseReturnCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items         PurchaseReturnItem[]
+  executions    SupplierReturnExecution[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, supplierId, createdAt])
+  @@index([companyId, purchaseOrderId])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String @map("company_id") @db.Uuid
+  purchaseReturnId    String @map("purchase_return_id") @db.Uuid
+  purchaseOrderItemId String? @map("purchase_order_item_id") @db.Uuid
+  skuId               String @map("sku_id") @db.Uuid
+
+  /// Requested / approved return quantity (commercial intent). Not physical dispatched qty.
+  quantity Int
+  reason   PurchaseReturnReason?
+  notes    String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseReturn    PurchaseReturn     @relation(fields: [purchaseReturnId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku               Sku                @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  executionItems    SupplierReturnExecutionItem[]
+
+  @@unique([id, companyId])
+  @@index([companyId, purchaseReturnId])
+  @@index([companyId, purchaseOrderItemId])
+  @@index([companyId, skuId])
+  @@map("purchase_return_items")
+}
+
+// ---------------------------------------------------------------------------
+// Warehouse Master (Phase 3.2) + Locations (Phase 3.3) + Goods Receipt (Phase 3.4)
+// + Putaway (3.8) + Inventory Movement Ledger (3.9).
+// ---------------------------------------------------------------------------
+
+model Warehouse {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String          @map("company_id") @db.Uuid
+  /// Operational code (stored normalized uppercase). Unique per company. Not a FK identity.
+  code      String
+  name      String
+  status    WarehouseStatus @default(ACTIVE)
+  /// At most one default per company (partial unique index in migration).
+  /// CHECK: isDefault ⇒ status = ACTIVE (enforced in migration SQL).
+  isDefault Boolean         @default(false) @map("is_default")
+  /// System-managed warehouse (e.g. SYS-TRANSIT). Hidden from normal warehouse UI/lists.
+  isSystem  Boolean         @default(false) @map("is_system")
+  address   String?
+  notes     String?
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  locations     WarehouseLocation[]
+  goodsReceipts GoodsReceipt[]
+  putaways      Putaway[]
+  inventoryMovements InventoryMovement[]
+  inventoryBalances  InventoryBalance[]
+  stockTransfersAsSource      StockTransfer[] @relation("StockTransferSourceWarehouse")
+  stockTransfersAsDestination StockTransfer[] @relation("StockTransferDestinationWarehouse")
+  stockClassificationChanges  StockClassificationChange[]
+  stockIssues                 StockIssue[]
+  inventoryAdjustments        InventoryAdjustment[]
+  stockCounts                 StockCount[]
+  supplierReturnExecutions    SupplierReturnExecution[]
+  inventoryAvailabilityLocks  InventoryAvailabilityLock[]
+  inventoryReservations       InventoryReservation[]
+  inventoryCostLayers         InventoryCostLayer[]
+
+  /// Supports future composite FKs (Locations, Receipts, Movements) sharing companyId.
+  @@unique([id, companyId])
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, name])
+  @@index([companyId, isDefault])
+  @@index([companyId, isSystem])
+  @@map("warehouses")
+}
+
+/// Flexible hierarchical physical location (adjacency list).
+/// Root locations have parentId = null (directly under Warehouse).
+/// Levels may be skipped (e.g. Warehouse → SHELF). No stock quantity here.
+model WarehouseLocation {
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String                @map("company_id") @db.Uuid
+  warehouseId String                @map("warehouse_id") @db.Uuid
+  parentId    String?               @map("parent_id") @db.Uuid
+  type        WarehouseLocationType
+  /// Operational code (stored normalized uppercase). Unique per warehouse. Not FK identity.
+  code        String
+  name        String?
+  /// Stable Warehouse-owned barcode (LOC-…). Not Catalog product barcode. Not derived from code.
+  barcode     String
+  status      WarehouseStatus       @default(ACTIVE)
+  sortOrder   Int                   @default(0) @map("sort_order")
+  notes       String?
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse          @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  parent    WarehouseLocation? @relation("WarehouseLocationTree", fields: [parentId, companyId, warehouseId], references: [id, companyId, warehouseId], onDelete: Restrict)
+  children  WarehouseLocation[] @relation("WarehouseLocationTree")
+  putawayItems PutawayItem[]
+  inventoryMovements InventoryMovement[]
+  inventoryBalances  InventoryBalance[]
+  stockTransferItemsAsSource      StockTransferItem[] @relation("StockTransferItemSourceLocation")
+  stockTransferItemsAsDestination StockTransferItem[] @relation("StockTransferItemDestinationLocation")
+  stockClassificationChanges      StockClassificationChange[]
+  stockIssueItems                 StockIssueItem[]
+  inventoryAdjustmentItems        InventoryAdjustmentItem[]
+  stockCountItems                 StockCountItem[]
+  stockCountScopeLocations        StockCountScopeLocation[]
+  supplierReturnExecutionItems    SupplierReturnExecutionItem[]
+
+  @@unique([id, companyId])
+  @@unique([id, companyId, warehouseId])
+  @@unique([companyId, warehouseId, code])
+  @@unique([barcode])
+  @@index([companyId, warehouseId])
+  @@index([warehouseId, parentId])
+  @@index([warehouseId, status])
+  @@index([warehouseId, type])
+  @@index([companyId, barcode])
+  @@map("warehouse_locations")
+}
+
+/// Per-company sequence for GRN-YYYY-NNNNNN (Phase 3.4). Same UPSERT pattern as PO/PR.
+model GoodsReceiptSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("goods_receipt_sequences")
+}
+
+/// Physical goods receipt against a Purchase Order (Phase 3.4).
+/// Does NOT represent stock balance. Does NOT create InventoryMovement yet.
+/// supplierId is denormalized from PO for query/history; must always equal purchaseOrder.supplierId.
+model GoodsReceipt {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String             @map("company_id") @db.Uuid
+  /// Human number, e.g. GRN-2026-000001. Unique per company. Not FK identity.
+  number          String
+  warehouseId     String             @map("warehouse_id") @db.Uuid
+  purchaseOrderId String             @map("purchase_order_id") @db.Uuid
+  /// Denormalized from PurchaseOrder.supplierId at create; enforced equal thereafter.
+  supplierId      String             @map("supplier_id") @db.Uuid
+  status          GoodsReceiptStatus @default(DRAFT)
+
+  /// When goods were physically received (operator-provided; may differ from createdAt/postedAt).
+  receivedAt DateTime? @map("received_at") @db.Timestamptz(3)
+  postedAt   DateTime? @map("posted_at") @db.Timestamptz(3)
+  notes      String?
+
+  cancellationReason String? @map("cancellation_reason")
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  postedById    String? @map("posted_by_id") @db.Uuid
+  cancelledById String? @map("cancelled_by_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  /// Optimistic concurrency for concurrent post attempts on the same GRN.
+  version Int @default(1)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse     Warehouse     @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplier      Supplier      @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy     User          @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy      User?         @relation("GoodsReceiptPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy   User?         @relation("GoodsReceiptCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items         GoodsReceiptItem[]
+  scanRequests  GoodsReceiptScanRequest[]
+  putaways      Putaway[]
+  supplierPayableLines SupplierPayableLine[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, warehouseId])
+  @@index([companyId, purchaseOrderId])
+  @@index([companyId, supplierId])
+  @@index([purchaseOrderId, status])
+  @@index([companyId, receivedAt])
+  @@index([companyId, createdAt])
+  @@map("goods_receipts")
+}
+
+/// Bounded scanner apply idempotency (Phase 3.6).
+/// Same (companyId, goodsReceiptId, requestId) → apply once; new requestId = new physical scan.
+/// Not inventory truth. Not a scan event log.
+model GoodsReceiptScanRequest {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  goodsReceiptId String   @map("goods_receipt_id") @db.Uuid
+  /// Client-generated UUID per scanner submission (network retry protection).
+  requestId      String   @map("request_id") @db.Uuid
+  responseJson   Json     @map("response_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([companyId, goodsReceiptId, requestId])
+  @@index([goodsReceiptId])
+  @@map("goods_receipt_scan_requests")
+}
+
+/// Line on a Goods Receipt. Traces to exact PurchaseOrderItem + SKU.
+/// skuId denormalized from PO item; must always equal purchaseOrderItem.skuId.
+/// No locationId yet — Putaway is a later warehouse operation.
+model GoodsReceiptItem {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String @map("company_id") @db.Uuid
+  goodsReceiptId      String @map("goods_receipt_id") @db.Uuid
+  purchaseOrderItemId String @map("purchase_order_item_id") @db.Uuid
+  /// Denormalized from PurchaseOrderItem.skuId; enforced equal.
+  skuId               String @map("sku_id") @db.Uuid
+  /// Received quantity (> 0). Integer units (cosmetics).
+  quantity            Int
+  notes               String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goodsReceipt      GoodsReceipt      @relation(fields: [goodsReceiptId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku               Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batchAllocations  GoodsReceiptItemBatch[]
+  supplierPayableLine SupplierPayableLine?
+
+  @@unique([id, companyId])
+  @@unique([goodsReceiptId, purchaseOrderItemId])
+  @@index([companyId, goodsReceiptId])
+  @@index([purchaseOrderItemId])
+  @@index([companyId, skuId])
+  @@map("goods_receipt_items")
+}
+
+/// Per-company sequence for BAT-NNNNNN (Phase 3.7).
+model BatchSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("batch_sequences")
+}
+
+/// Batch / Lot identity (Phase 3.7).
+/// Identity/master data only — NEVER a mutable inventory balance.
+/// Current On Hand = SUM(InventoryMovement.quantityDelta) for this batch (Phase 3.9).
+model Batch {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  skuId     String @map("sku_id") @db.Uuid
+
+  /// Hector internal operational identity, e.g. BAT-000001. Immutable after create.
+  batchNumber String @map("batch_number")
+  /// Supplier/manufacturer lot text. Optional. Preserved as string (leading zeros).
+  supplierBatchNumber String? @map("supplier_batch_number")
+
+  manufacturedAt DateTime? @map("manufactured_at") @db.Date
+  /// Optional expiry. Nullable forever — FEFO later; not required to receive.
+  expiresAt DateTime? @map("expires_at") @db.Date
+  notes     String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sku     Sku     @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  receiptAllocations GoodsReceiptItemBatch[]
+  inventoryMovements InventoryMovement[]
+  inventoryBalances  InventoryBalance[]
+  stockTransferItems StockTransferItem[]
+  stockClassificationChanges StockClassificationChange[]
+  stockIssueItems            StockIssueItem[]
+  inventoryAdjustmentItems   InventoryAdjustmentItem[]
+  stockCountItems            StockCountItem[]
+  supplierReturnExecutionItems SupplierReturnExecutionItem[]
+  inventoryCostLayers        InventoryCostLayer[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, batchNumber])
+  @@index([companyId, skuId])
+  @@index([companyId, expiresAt])
+  @@index([companyId, skuId, supplierBatchNumber])
+  @@map("batches")
+}
+
+/// Allocation of a DRAFT/POSTED GRN item quantity to a Batch (Phase 3.7).
+/// Draft allocations are not inventory. POSTED allocations are immutable receipt history.
+model GoodsReceiptItemBatch {
+  id                 String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String @map("company_id") @db.Uuid
+  goodsReceiptItemId String @map("goods_receipt_item_id") @db.Uuid
+  batchId            String @map("batch_id") @db.Uuid
+  /// Denormalized from Batch.skuId / GoodsReceiptItem.skuId for integrity checks.
+  skuId              String @map("sku_id") @db.Uuid
+  /// Allocated received quantity (> 0). Part of GRN item quantity, not current stock.
+  quantity           Int
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goodsReceiptItem GoodsReceiptItem @relation(fields: [goodsReceiptItemId, companyId], references: [id, companyId], onDelete: Cascade)
+  batch            Batch            @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku              Sku              @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  putawayItems     PutawayItem[]
+
+  @@unique([id, companyId])
+  @@unique([goodsReceiptItemId, batchId])
+  @@index([batchId])
+  @@index([companyId, goodsReceiptItemId])
+  @@index([companyId, batchId])
+  @@map("goods_receipt_item_batches")
+}
+
+/// Per-company sequence for PUT-NNNNNN (Phase 3.8).
+model PutawaySequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("putaway_sequences")
+}
+
+/// Putaway session: maps POSTED receipt batch allocations to warehouse locations (Phase 3.8).
+/// COMPLETED putaway items create canonical RECEIVE InventoryMovements (Phase 3.9) exactly once.
+model Putaway {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  /// Human number, e.g. PUT-000001. Unique per company.
+  number         String
+  warehouseId    String        @map("warehouse_id") @db.Uuid
+  goodsReceiptId String        @map("goods_receipt_id") @db.Uuid
+  status         PutawayStatus @default(DRAFT)
+
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  completedById String? @map("completed_by_id") @db.Uuid
+
+  /// Optimistic concurrency for concurrent complete attempts.
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse    @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy    User         @relation("PutawayCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  completedBy  User?        @relation("PutawayCompletedBy", fields: [completedById], references: [id], onDelete: Restrict)
+  items        PutawayItem[]
+  scanRequests PutawayScanRequest[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, warehouseId])
+  @@index([companyId, goodsReceiptId])
+  @@index([companyId, createdAt])
+  @@map("putaways")
+}
+
+/// Placement line: receipt batch allocation quantity assigned to a location within a Putaway.
+/// SKU/Batch/Warehouse are derived from the source allocation + Putaway header.
+model PutawayItem {
+  id                         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                  String @map("company_id") @db.Uuid
+  putawayId                  String @map("putaway_id") @db.Uuid
+  goodsReceiptItemBatchId    String @map("goods_receipt_item_batch_id") @db.Uuid
+  warehouseLocationId        String @map("warehouse_location_id") @db.Uuid
+  /// Putaway quantity (> 0). Part of placement history, not current stock.
+  quantity                   Int
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company               Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  putaway               Putaway               @relation(fields: [putawayId, companyId], references: [id, companyId], onDelete: Cascade)
+  goodsReceiptItemBatch GoodsReceiptItemBatch @relation(fields: [goodsReceiptItemBatchId, companyId], references: [id, companyId], onDelete: Restrict)
+  warehouseLocation     WarehouseLocation     @relation(fields: [warehouseLocationId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([putawayId, goodsReceiptItemBatchId, warehouseLocationId])
+  @@index([putawayId])
+  @@index([goodsReceiptItemBatchId])
+  @@index([warehouseLocationId])
+  @@index([companyId, putawayId])
+  @@map("putaway_items")
+}
+
+/// Scanner apply idempotency for Putaway (Phase 3.8).
+model PutawayScanRequest {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  putawayId  String   @map("putaway_id") @db.Uuid
+  requestId  String   @map("request_id") @db.Uuid
+  responseJson Json   @map("response_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  putaway Putaway @relation(fields: [putawayId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([companyId, putawayId, requestId])
+  @@index([putawayId])
+  @@map("putaway_scan_requests")
+}
+
+/// Canonical inventory quantity ledger (Phase 3.9). Append-only; never edit/delete posted rows.
+/// On Hand(position) = SUM(quantityDelta). Corrections = compensating movements.
+/// Classification is a position dimension (Phase 3.12) — not a SKU property.
+model InventoryMovement {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+
+  warehouseId String @map("warehouse_id") @db.Uuid
+  locationId  String @map("location_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  /// Required for operational warehouse stock (batch-aware receiving).
+  batchId     String @map("batch_id") @db.Uuid
+  /// Operational classification for this position (Phase 3.12). Default SELLABLE for legacy/receive.
+  classification StockClassification @default(SELLABLE)
+
+  movementType  InventoryMovementType @map("movement_type")
+  /// Signed integer delta. Never zero. Sign must agree with movementType.
+  quantityDelta Int                   @map("quantity_delta")
+
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sourceType   InventorySourceType @map("source_type")
+  /// Parent operation document id (e.g. putawayId, transfer operation id).
+  sourceId     String              @map("source_id") @db.Uuid
+  /// Line-level idempotency key (e.g. putawayItemId). Unique with sourceType + movementType.
+  sourceLineId String              @map("source_line_id") @db.Uuid
+
+  /// Shared id for multi-entry operations (TRANSFER_OUT/IN, RECLASSIFY_OUT/IN pairs, etc.).
+  operationId String? @map("operation_id") @db.Uuid
+
+  reasonCode String? @map("reason_code")
+  notes      String?
+
+  /// Optional reversal linkage (compensating movement points at original).
+  reversalOfMovementId String? @map("reversal_of_movement_id") @db.Uuid
+
+  createdById String @map("created_by_id") @db.Uuid
+
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse         @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  location  WarehouseLocation @relation(fields: [locationId, companyId, warehouseId], references: [id, companyId, warehouseId], onDelete: Restrict)
+  sku       Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch     Batch             @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User              @relation("InventoryMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  reversalOf InventoryMovement?  @relation("InventoryMovementReversal", fields: [reversalOfMovementId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversedBy InventoryMovement[] @relation("InventoryMovementReversal")
+  layerConsumptions InventoryLayerConsumption[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, sourceType, sourceLineId, movementType])
+  @@index([companyId, occurredAt])
+  @@index([companyId, skuId, occurredAt])
+  @@index([companyId, warehouseId, occurredAt])
+  @@index([companyId, locationId, occurredAt])
+  @@index([companyId, batchId, occurredAt])
+  @@index([companyId, classification, occurredAt])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, operationId])
+  @@map("inventory_movements")
+}
+
+/// Rebuildable On Hand projection (Phase 3.9/3.10). NOT independent truth — Ledger wins.
+/// Mutated only by InventoryLedgerService (posting) or admin rebuild infrastructure.
+/// Never PATCH via business APIs. See docs/stock-balance.md.
+/// Uniqueness includes classification (Phase 3.12) so SELLABLE/TESTER/etc. stay separate.
+model InventoryBalance {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  locationId  String @map("location_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  batchId     String @map("batch_id") @db.Uuid
+  classification StockClassification @default(SELLABLE)
+
+  /// Projected On Hand. Always >= 0. Equals SUM(movements) for this position.
+  onHandQuantity Int @default(0) @map("on_hand_quantity")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse         @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  location  WarehouseLocation @relation(fields: [locationId, companyId, warehouseId], references: [id, companyId, warehouseId], onDelete: Restrict)
+  sku       Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch     Batch             @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, warehouseId, locationId, skuId, batchId, classification])
+  @@index([companyId, skuId])
+  @@index([companyId, skuId, classification])
+  @@index([companyId, warehouseId])
+  @@index([companyId, warehouseId, classification])
+  @@index([companyId, locationId])
+  @@index([companyId, locationId, classification])
+  @@index([companyId, batchId])
+  @@index([companyId, classification])
+  @@map("inventory_balances")
+}
+
+/// Per-company sequence for TRF-NNNNNN (Phase 3.11).
+model StockTransferSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("stock_transfer_sequences")
+}
+
+/// Internal stock transfer document (Phase 3.11).
+/// Never mutates Balance directly — dispatch/complete/cancel post Ledger pairs via InventoryLedgerService.
+model StockTransfer {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String              @map("company_id") @db.Uuid
+  /// Human number, e.g. TRF-000001. Unique per company.
+  number    String
+  sourceWarehouseId      String @map("source_warehouse_id") @db.Uuid
+  destinationWarehouseId String @map("destination_warehouse_id") @db.Uuid
+  status    StockTransferStatus @default(DRAFT)
+
+  notes             String?
+  externalReference String? @map("external_reference")
+
+  dispatchedAt DateTime? @map("dispatched_at") @db.Timestamptz(3)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(3)
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById    String  @map("created_by_id") @db.Uuid
+  dispatchedById String? @map("dispatched_by_id") @db.Uuid
+  completedById  String? @map("completed_by_id") @db.Uuid
+  cancelledById  String? @map("cancelled_by_id") @db.Uuid
+
+  /// Optimistic concurrency for lifecycle commands.
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceWarehouse      Warehouse @relation("StockTransferSourceWarehouse", fields: [sourceWarehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  destinationWarehouse Warehouse @relation("StockTransferDestinationWarehouse", fields: [destinationWarehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy            User      @relation("StockTransferCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  dispatchedBy         User?     @relation("StockTransferDispatchedBy", fields: [dispatchedById], references: [id], onDelete: Restrict)
+  completedBy          User?     @relation("StockTransferCompletedBy", fields: [completedById], references: [id], onDelete: Restrict)
+  cancelledBy          User?     @relation("StockTransferCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items                StockTransferItem[]
+  scanRequests         StockTransferScanRequest[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, sourceWarehouseId])
+  @@index([companyId, destinationWarehouseId])
+  @@index([companyId, createdAt])
+  @@map("stock_transfers")
+}
+
+/// Transfer line. Locations are per-item (multi-location transfers).
+/// Batch identity and classification are preserved end-to-end (Phase 3.12).
+/// Quantity is unsigned; Ledger signs movements.
+model StockTransferItem {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  transferId String @map("transfer_id") @db.Uuid
+
+  skuId   String @map("sku_id") @db.Uuid
+  batchId String @map("batch_id") @db.Uuid
+  /// Classification transferred as-is (not reclassified by transfer).
+  classification StockClassification @default(SELLABLE)
+
+  sourceLocationId      String @map("source_location_id") @db.Uuid
+  destinationLocationId String @map("destination_location_id") @db.Uuid
+
+  /// Transfer quantity (> 0). Not signed; not current stock.
+  quantity Int
+  notes    String?
+
+  /// Idempotency keys for Ledger unique (sourceType, sourceLineId, movementType).
+  /// Dispatch uses item.id; complete/cancel use dedicated UUIDs (same OUT/IN types per phase).
+  completeSourceLineId String @default(dbgenerated("gen_random_uuid()")) @map("complete_source_line_id") @db.Uuid
+  cancelSourceLineId   String @default(dbgenerated("gen_random_uuid()")) @map("cancel_source_line_id") @db.Uuid
+
+  dispatchOperationId String? @map("dispatch_operation_id") @db.Uuid
+  completeOperationId String? @map("complete_operation_id") @db.Uuid
+  cancelOperationId   String? @map("cancel_operation_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company             Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transfer            StockTransfer     @relation(fields: [transferId, companyId], references: [id, companyId], onDelete: Cascade)
+  sku                 Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch               Batch             @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  sourceLocation      WarehouseLocation @relation("StockTransferItemSourceLocation", fields: [sourceLocationId, companyId], references: [id, companyId], onDelete: Restrict)
+  destinationLocation WarehouseLocation @relation("StockTransferItemDestinationLocation", fields: [destinationLocationId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([transferId, skuId, batchId, classification, sourceLocationId, destinationLocationId])
+  @@unique([completeSourceLineId])
+  @@unique([cancelSourceLineId])
+  @@index([transferId])
+  @@index([companyId, skuId])
+  @@index([batchId])
+  @@index([classification])
+  @@index([sourceLocationId])
+  @@index([destinationLocationId])
+  @@map("stock_transfer_items")
+}
+
+/// Scanner apply idempotency for Stock Transfer drafts (Phase 3.11).
+model StockTransferScanRequest {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  transferId String   @map("transfer_id") @db.Uuid
+  requestId  String   @map("request_id") @db.Uuid
+  responseJson Json   @map("response_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transfer StockTransfer @relation(fields: [transferId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([companyId, transferId, requestId])
+  @@index([transferId])
+  @@map("stock_transfer_scan_requests")
+}
+
+/// Immediate classification change document (Phase 3.12).
+/// Always posted atomically as RECLASSIFY_OUT + RECLASSIFY_IN via Ledger. No draft lifecycle.
+model StockClassificationChange {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+
+  warehouseId String @map("warehouse_id") @db.Uuid
+  locationId  String @map("location_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  batchId     String @map("batch_id") @db.Uuid
+
+  fromClassification StockClassification @map("from_classification")
+  toClassification   StockClassification @map("to_classification")
+  quantity           Int
+
+  reason String?
+  notes  String?
+
+  /// Shared Ledger operationId for the OUT/IN pair.
+  operationId String @map("operation_id") @db.Uuid
+
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse         @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  location  WarehouseLocation @relation(fields: [locationId, companyId, warehouseId], references: [id, companyId, warehouseId], onDelete: Restrict)
+  sku       Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch     Batch             @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User              @relation("StockClassificationChangeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, skuId])
+  @@index([companyId, warehouseId])
+  @@index([companyId, createdAt])
+  @@index([companyId, operationId])
+  @@map("stock_classification_changes")
+}
+
+/// Per-company sequence for ISS-NNNNNN (Phase 3.12).
+model StockIssueSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("stock_issue_sequences")
+}
+
+/// Manual non-sales outbound document (Phase 3.12).
+/// DRAFT has no Ledger effect. POST posts ISSUE movements. POSTED cannot be cancelled.
+model StockIssue {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String           @map("company_id") @db.Uuid
+  /// Human number, e.g. ISS-000001. Unique per company.
+  number    String
+  warehouseId String         @map("warehouse_id") @db.Uuid
+  reason    StockIssueReason
+  reasonText String?         @map("reason_text")
+  notes     String?
+  status    StockIssueStatus @default(DRAFT)
+
+  postedAt    DateTime? @map("posted_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  postedById    String? @map("posted_by_id") @db.Uuid
+  cancelledById String? @map("cancelled_by_id") @db.Uuid
+
+  /// Optimistic concurrency for lifecycle commands.
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User      @relation("StockIssueCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?     @relation("StockIssuePostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?     @relation("StockIssueCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items       StockIssueItem[]
+  scanRequests StockIssueScanRequest[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, warehouseId])
+  @@index([companyId, reason])
+  @@index([companyId, createdAt])
+  @@map("stock_issues")
+}
+
+/// StockIssue line. Source position includes classification (Phase 3.12).
+model StockIssueItem {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String @map("company_id") @db.Uuid
+  stockIssueId String @map("stock_issue_id") @db.Uuid
+
+  skuId          String              @map("sku_id") @db.Uuid
+  batchId        String              @map("batch_id") @db.Uuid
+  locationId     String              @map("location_id") @db.Uuid
+  classification StockClassification
+
+  /// Issue quantity (> 0). Not signed; Ledger posts negative ISSUE.
+  quantity Int
+  notes    String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stockIssue StockIssue        @relation(fields: [stockIssueId, companyId], references: [id, companyId], onDelete: Cascade)
+  sku        Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch      Batch             @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  location   WarehouseLocation @relation(fields: [locationId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([stockIssueId, skuId, batchId, locationId, classification])
+  @@index([stockIssueId])
+  @@index([companyId, skuId])
+  @@index([batchId])
+  @@index([locationId])
+  @@index([classification])
+  @@map("stock_issue_items")
+}
+
+/// Scanner apply idempotency for Stock Issue drafts (Phase 3.12).
+model StockIssueScanRequest {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  stockIssueId String   @map("stock_issue_id") @db.Uuid
+  requestId    String   @map("request_id") @db.Uuid
+  responseJson Json     @map("response_json")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stockIssue StockIssue @relation(fields: [stockIssueId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([companyId, stockIssueId, requestId])
+  @@index([stockIssueId])
+  @@map("stock_issue_scan_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3.13 — Inventory Adjustments + Stock Counts
+// ---------------------------------------------------------------------------
+
+/// Per-company sequence for ADJ-NNNNNN (Phase 3.13).
+model InventoryAdjustmentSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("inventory_adjustment_sequences")
+}
+
+/// Manual inventory correction document (Phase 3.13).
+/// DRAFT/PENDING/APPROVED have no Ledger effect. POST posts ADJUSTMENT_IN/OUT.
+/// POSTED cannot be cancelled — create a compensating adjustment instead.
+model InventoryAdjustment {
+  id        String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String                     @map("company_id") @db.Uuid
+  /// Human number, e.g. ADJ-000001. Unique per company.
+  number    String
+  warehouseId String                   @map("warehouse_id") @db.Uuid
+  reason    InventoryAdjustmentReason
+  reasonText String?                   @map("reason_text")
+  notes     String?
+  status    InventoryAdjustmentStatus  @default(DRAFT)
+
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(3)
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(3)
+  rejectedAt  DateTime? @map("rejected_at") @db.Timestamptz(3)
+  postedAt    DateTime? @map("posted_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  approvedById  String? @map("approved_by_id") @db.Uuid
+  rejectedById  String? @map("rejected_by_id") @db.Uuid
+  postedById    String? @map("posted_by_id") @db.Uuid
+  cancelledById String? @map("cancelled_by_id") @db.Uuid
+
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User      @relation("InventoryAdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy  User?     @relation("InventoryAdjustmentApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  rejectedBy  User?     @relation("InventoryAdjustmentRejectedBy", fields: [rejectedById], references: [id], onDelete: Restrict)
+  postedBy    User?     @relation("InventoryAdjustmentPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?     @relation("InventoryAdjustmentCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items       InventoryAdjustmentItem[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, warehouseId])
+  @@index([companyId, reason])
+  @@index([companyId, createdAt])
+  @@map("inventory_adjustments")
+}
+
+/// InventoryAdjustment line. Quantity > 0; direction IN/OUT. Exact position dimensions.
+model InventoryAdjustmentItem {
+  id                    String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String                       @map("company_id") @db.Uuid
+  inventoryAdjustmentId String                       @map("inventory_adjustment_id") @db.Uuid
+
+  locationId     String                       @map("location_id") @db.Uuid
+  skuId          String                       @map("sku_id") @db.Uuid
+  batchId        String                       @map("batch_id") @db.Uuid
+  classification StockClassification
+  direction      InventoryAdjustmentDirection
+  /// Positive quantity. Ledger sign comes from direction (IN→+, OUT→−).
+  quantity       Int
+  notes          String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  adjustment InventoryAdjustment @relation(fields: [inventoryAdjustmentId, companyId], references: [id, companyId], onDelete: Cascade)
+  sku        Sku                 @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch      Batch               @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  location   WarehouseLocation   @relation(fields: [locationId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([inventoryAdjustmentId, locationId, skuId, batchId, classification, direction])
+  @@index([inventoryAdjustmentId])
+  @@index([companyId, skuId])
+  @@index([locationId])
+  @@index([batchId])
+  @@index([classification])
+  @@map("inventory_adjustment_items")
+}
+
+/// Per-company sequence for COUNT-NNNNNN (Phase 3.13).
+model StockCountSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("stock_count_sequences")
+}
+
+/// Physical / cycle inventory count session (Phase 3.13).
+/// Snapshot at start; expected = snapshot + net ledger movements during count.
+/// Corrections post as STOCK_COUNT_ADJUSTMENT_IN/OUT — never overwrite StockBalance.
+model StockCount {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String           @map("company_id") @db.Uuid
+  /// Human number, e.g. COUNT-000001. Unique per company.
+  number      String
+  warehouseId String           @map("warehouse_id") @db.Uuid
+  type        StockCountType
+  status      StockCountStatus @default(DRAFT)
+  /// When true, count UI/API omits system/expected quantities from performer views.
+  blindCount  Boolean          @default(false) @map("blind_count")
+  /// When true, scanner may add discovered positions outside pre-built lines.
+  allowDiscoveredItems Boolean @default(false) @map("allow_discovered_items")
+  /// Empty = all classifications in warehouse scope.
+  scopeClassifications StockClassification[] @default([]) @map("scope_classifications")
+  /// Optional absolute difference warning threshold (units). Null = no warning.
+  highDifferenceThreshold Int? @map("high_difference_threshold")
+  notes String?
+
+  startedAt           DateTime? @map("started_at") @db.Timestamptz(3)
+  submittedAt         DateTime? @map("submitted_at") @db.Timestamptz(3)
+  recountRequestedAt  DateTime? @map("recount_requested_at") @db.Timestamptz(3)
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(3)
+  rejectedAt          DateTime? @map("rejected_at") @db.Timestamptz(3)
+  postedAt            DateTime? @map("posted_at") @db.Timestamptz(3)
+  cancelledAt         DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById   String  @map("created_by_id") @db.Uuid
+  startedById   String? @map("started_by_id") @db.Uuid
+  submittedById String? @map("submitted_by_id") @db.Uuid
+  approvedById  String? @map("approved_by_id") @db.Uuid
+  rejectedById  String? @map("rejected_by_id") @db.Uuid
+  postedById    String? @map("posted_by_id") @db.Uuid
+  cancelledById String? @map("cancelled_by_id") @db.Uuid
+
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User      @relation("StockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  startedBy   User?     @relation("StockCountStartedBy", fields: [startedById], references: [id], onDelete: Restrict)
+  submittedBy User?     @relation("StockCountSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  approvedBy  User?     @relation("StockCountApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  rejectedBy  User?     @relation("StockCountRejectedBy", fields: [rejectedById], references: [id], onDelete: Restrict)
+  postedBy    User?     @relation("StockCountPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?     @relation("StockCountCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items            StockCountItem[]
+  scopeLocations   StockCountScopeLocation[]
+  scopeSkus        StockCountScopeSku[]
+  scanRequests     StockCountScanRequest[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, warehouseId])
+  @@index([companyId, type])
+  @@index([companyId, createdAt])
+  @@map("stock_counts")
+}
+
+/// Optional location scope for CYCLE counts. Empty set = all locations in warehouse.
+model StockCountScopeLocation {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String @map("company_id") @db.Uuid
+  stockCountId String @map("stock_count_id") @db.Uuid
+  locationId   String @map("location_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stockCount StockCount        @relation(fields: [stockCountId, companyId], references: [id, companyId], onDelete: Cascade)
+  location   WarehouseLocation @relation(fields: [locationId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([stockCountId, locationId])
+  @@index([stockCountId])
+  @@index([locationId])
+  @@map("stock_count_scope_locations")
+}
+
+/// Optional SKU scope for CYCLE counts. Empty set = all SKUs with balances in warehouse/locations.
+model StockCountScopeSku {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String @map("company_id") @db.Uuid
+  stockCountId String @map("stock_count_id") @db.Uuid
+  skuId        String @map("sku_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stockCount StockCount @relation(fields: [stockCountId, companyId], references: [id, companyId], onDelete: Cascade)
+  sku        Sku        @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([stockCountId, skuId])
+  @@index([stockCountId])
+  @@index([skuId])
+  @@map("stock_count_scope_skus")
+}
+
+/// Stock count line. Snapshot frozen at start; countedQuantity NULL ≠ 0.
+model StockCountItem {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String @map("company_id") @db.Uuid
+  stockCountId String @map("stock_count_id") @db.Uuid
+
+  warehouseId    String              @map("warehouse_id") @db.Uuid
+  locationId     String              @map("location_id") @db.Uuid
+  skuId          String              @map("sku_id") @db.Uuid
+  batchId        String              @map("batch_id") @db.Uuid
+  classification StockClassification
+
+  /// System On Hand at count start (immutable after start).
+  snapshotQuantity Int @map("snapshot_quantity")
+  /// NULL = uncounted; 0 = explicitly counted zero. Never treat NULL as zero.
+  countedQuantity Int? @map("counted_quantity")
+  /// Net ledger movements on this position after startedAt, before post (set at post; live on review).
+  movementsDuringCount Int? @map("movements_during_count")
+  /// snapshotQuantity + movementsDuringCount (set at post).
+  expectedQuantity Int? @map("expected_quantity")
+  /// countedQuantity - expectedQuantity (set at post). Null until counted+posted path.
+  difference Int?
+
+  lineStatus StockCountLineStatus @default(PENDING) @map("line_status")
+  /// True when added during count for a position with no pre-start balance line.
+  isDiscovered Boolean @default(false) @map("is_discovered")
+
+  countedById String?   @map("counted_by_id") @db.Uuid
+  countedAt   DateTime? @map("counted_at") @db.Timestamptz(3)
+  notes       String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stockCount StockCount        @relation(fields: [stockCountId, companyId], references: [id, companyId], onDelete: Cascade)
+  sku        Sku               @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch      Batch             @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  location   WarehouseLocation @relation(fields: [locationId, companyId], references: [id, companyId], onDelete: Restrict)
+  countedBy  User?             @relation("StockCountItemCountedBy", fields: [countedById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([stockCountId, locationId, skuId, batchId, classification])
+  @@index([stockCountId])
+  @@index([companyId, skuId])
+  @@index([locationId])
+  @@index([batchId])
+  @@index([classification])
+  @@index([lineStatus])
+  @@map("stock_count_items")
+}
+
+/// Scanner apply idempotency for Stock Count (Phase 3.13).
+model StockCountScanRequest {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  stockCountId String   @map("stock_count_id") @db.Uuid
+  requestId    String   @map("request_id") @db.Uuid
+  responseJson Json     @map("response_json")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stockCount StockCount @relation(fields: [stockCountId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([companyId, stockCountId, requestId])
+  @@index([stockCountId])
+  @@map("stock_count_scan_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3.14 — Supplier Return Execution (physical warehouse fulfillment)
+// ---------------------------------------------------------------------------
+
+/// Per-company sequence for SRE-NNNNNN (Phase 3.14).
+model SupplierReturnExecutionSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("supplier_return_execution_sequences")
+}
+
+/// Physical warehouse execution of an APPROVED PurchaseReturn (Phase 3.14).
+/// One execution = one Warehouse. Multiple executions may fulfill one return.
+/// DRAFT: editable allocations, no Ledger. DISPATCHED: RETURN_OUT posted. CANCELLED: pre-dispatch only.
+model SupplierReturnExecution {
+  id               String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String                        @map("company_id") @db.Uuid
+  /// Human number, e.g. SRE-000001. Unique per company.
+  number           String
+  purchaseReturnId String                        @map("purchase_return_id") @db.Uuid
+  warehouseId      String                        @map("warehouse_id") @db.Uuid
+  status           SupplierReturnExecutionStatus @default(DRAFT)
+  notes            String?
+
+  dispatchedAt DateTime? @map("dispatched_at") @db.Timestamptz(3)
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById    String  @map("created_by_id") @db.Uuid
+  dispatchedById String? @map("dispatched_by_id") @db.Uuid
+  cancelledById  String? @map("cancelled_by_id") @db.Uuid
+
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId, companyId], references: [id, companyId], onDelete: Restrict)
+  warehouse      Warehouse      @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy      User           @relation("SupplierReturnExecutionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  dispatchedBy   User?          @relation("SupplierReturnExecutionDispatchedBy", fields: [dispatchedById], references: [id], onDelete: Restrict)
+  cancelledBy    User?          @relation("SupplierReturnExecutionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items          SupplierReturnExecutionItem[]
+  scanRequests   SupplierReturnExecutionScanRequest[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, purchaseReturnId])
+  @@index([companyId, warehouseId])
+  @@index([companyId, createdAt])
+  @@map("supplier_return_executions")
+}
+
+/// Physical allocation line for a SupplierReturnExecution.
+/// 1 PurchaseReturnItem → N execution items (locations/batches/classifications).
+model SupplierReturnExecutionItem {
+  id                       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                String @map("company_id") @db.Uuid
+  supplierReturnExecutionId String @map("supplier_return_execution_id") @db.Uuid
+  purchaseReturnItemId     String @map("purchase_return_item_id") @db.Uuid
+
+  skuId          String              @map("sku_id") @db.Uuid
+  batchId        String              @map("batch_id") @db.Uuid
+  locationId     String              @map("location_id") @db.Uuid
+  classification StockClassification
+  /// Dispatch quantity (> 0). Ledger posts RETURN_OUT with −quantity.
+  quantity       Int
+  notes          String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  execution  SupplierReturnExecution @relation(fields: [supplierReturnExecutionId, companyId], references: [id, companyId], onDelete: Cascade)
+  returnItem PurchaseReturnItem      @relation(fields: [purchaseReturnItemId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku        Sku                     @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch      Batch                   @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  location   WarehouseLocation       @relation(fields: [locationId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([supplierReturnExecutionId, purchaseReturnItemId, locationId, skuId, batchId, classification])
+  @@index([supplierReturnExecutionId])
+  @@index([purchaseReturnItemId])
+  @@index([companyId, skuId])
+  @@index([locationId])
+  @@index([batchId])
+  @@index([classification])
+  @@map("supplier_return_execution_items")
+}
+
+/// Scanner apply idempotency for Supplier Return Execution drafts (Phase 3.14).
+model SupplierReturnExecutionScanRequest {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                 String   @map("company_id") @db.Uuid
+  supplierReturnExecutionId String   @map("supplier_return_execution_id") @db.Uuid
+  requestId                 String   @map("request_id") @db.Uuid
+  responseJson              Json     @map("response_json")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  execution SupplierReturnExecution @relation(fields: [supplierReturnExecutionId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([companyId, supplierReturnExecutionId, requestId])
+  @@index([supplierReturnExecutionId])
+  @@map("supplier_return_execution_scan_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3.15 — Reservations + FIFO Cost Layers + Valuation Foundation
+// Physical On Hand = Ledger / Balance. Reserved = ACTIVE reservations.
+// Available = SELLABLE On Hand - Active Reserved. Valuation = remaining layers.
+// FIFO scope: Company + Warehouse + SKU (+ classification slice for provenance).
+// ---------------------------------------------------------------------------
+
+/// Concurrency lock scope for SELLABLE availability (company + warehouse + SKU).
+model InventoryAvailabilityLock {
+  companyId   String @map("company_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku       Sku       @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@id([companyId, warehouseId, skuId])
+  @@map("inventory_availability_locks")
+}
+
+/// Soft commitment of SELLABLE stock. Never creates InventoryMovement / never changes On Hand.
+model InventoryReservation {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+
+  sourceType   InventoryReservationSourceType @map("source_type")
+  sourceId     String @map("source_id") @db.Uuid
+  /// Always set (use sourceId when no line). Part of idempotent source identity.
+  sourceLineId String @map("source_line_id") @db.Uuid
+  /// Client idempotency key for create retries.
+  requestId    String @map("request_id") @db.Uuid
+
+  /// Original reserved quantity (immutable after create except increase).
+  quantity          Int
+  /// Remaining ACTIVE commitment (partial consume / decrease).
+  remainingQuantity Int @map("remaining_quantity")
+
+  status InventoryReservationStatus @default(ACTIVE)
+
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(3)
+  releasedAt  DateTime? @map("released_at") @db.Timestamptz(3)
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz(3)
+  expiredAt   DateTime? @map("expired_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  createdById String @map("created_by_id") @db.Uuid
+  version     Int    @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku       Sku       @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User      @relation("InventoryReservationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, requestId])
+  @@unique([companyId, sourceType, sourceId, sourceLineId])
+  @@index([companyId, warehouseId, skuId, status])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, status, expiresAt])
+  @@index([companyId, createdAt])
+  @@map("inventory_reservations")
+}
+
+/// Warehouse-scoped FIFO acquisition layer. Batch ≠ cost layer (batch optional provenance).
+model InventoryCostLayer {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  batchId     String? @map("batch_id") @db.Uuid
+  classification StockClassification @default(SELLABLE)
+
+  sourceType   InventoryCostLayerSourceType @map("source_type")
+  sourceId     String @map("source_id") @db.Uuid
+  sourceLineId String @map("source_line_id") @db.Uuid
+
+  purchaseOrderId     String? @map("purchase_order_id") @db.Uuid
+  purchaseOrderItemId String? @map("purchase_order_item_id") @db.Uuid
+  goodsReceiptId      String? @map("goods_receipt_id") @db.Uuid
+  goodsReceiptItemId  String? @map("goods_receipt_item_id") @db.Uuid
+  parentLayerId       String? @map("parent_layer_id") @db.Uuid
+
+  /// Deterministic FIFO order key: receivedAt ASC, then id ASC.
+  receivedAt DateTime @map("received_at") @db.Timestamptz(3)
+
+  originalQuantity  Int @map("original_quantity")
+  remainingQuantity Int @map("remaining_quantity")
+
+  valuationStatus InventoryValuationStatus @map("valuation_status")
+
+  /// Snapshot of purchase currency obligation (null when UNVALUED).
+  originalCurrency    CurrencyCode? @map("original_currency")
+  originalUnitAmount  Decimal?      @map("original_unit_amount") @db.Decimal(24, 6)
+  referenceFxRate     Decimal?      @map("reference_fx_rate") @db.Decimal(24, 8)
+  /// Company base-currency unit acquisition cost snapshot (null when UNVALUED).
+  baseCurrencyUnitCost Decimal?     @map("base_currency_unit_cost") @db.Decimal(24, 6)
+  /// True when PO has unallocated purchase costs (completeness = PARTIALLY_VALUED).
+  hasUnallocatedPurchaseCosts Boolean @default(false) @map("has_unallocated_purchase_costs")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId, companyId], references: [id, companyId], onDelete: Restrict)
+  sku       Sku       @relation(fields: [skuId, companyId], references: [id, companyId], onDelete: Restrict)
+  batch     Batch?    @relation(fields: [batchId, companyId], references: [id, companyId], onDelete: Restrict)
+  parentLayer InventoryCostLayer?  @relation("InventoryCostLayerParent", fields: [parentLayerId, companyId], references: [id, companyId], onDelete: Restrict)
+  childLayers InventoryCostLayer[] @relation("InventoryCostLayerParent")
+  consumptions InventoryLayerConsumption[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, sourceType, sourceLineId])
+  @@index([companyId, warehouseId, skuId, remainingQuantity])
+  @@index([companyId, warehouseId, skuId, classification, receivedAt])
+  @@index([companyId, purchaseOrderItemId])
+  @@index([companyId, goodsReceiptItemId])
+  @@index([companyId, parentLayerId])
+  @@index([companyId, valuationStatus])
+  @@map("inventory_cost_layers")
+}
+
+/// Immutable trace of quantity leaving a cost layer (paired with InventoryMovement).
+model InventoryLayerConsumption {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  inventoryMovementId String @map("inventory_movement_id") @db.Uuid
+  costLayerId         String @map("cost_layer_id") @db.Uuid
+  kind InventoryLayerConsumptionKind
+
+  quantity Int
+  /// Null when this slice is UNVALUED (never fabricate 0).
+  unitCost  Decimal? @map("unit_cost") @db.Decimal(24, 6)
+  totalCost Decimal? @map("total_cost") @db.Decimal(24, 6)
+  valuationStatus InventoryValuationStatus @map("valuation_status")
+
+  /// Destination layer created for TRANSFER_OUT / RECLASSIFY_OUT provenance moves.
+  destinationLayerId String? @map("destination_layer_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  movement  InventoryMovement @relation(fields: [inventoryMovementId, companyId], references: [id, companyId], onDelete: Restrict)
+  costLayer InventoryCostLayer @relation(fields: [costLayerId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, inventoryMovementId, costLayerId])
+  @@index([inventoryMovementId])
+  @@index([costLayerId])
+  @@index([companyId, createdAt])
+  @@map("inventory_layer_consumptions")
+}
+
+// ---------------------------------------------------------------------------
+// Finance Core — Phase 4.2 Accounts + Cash / Bank / Wallet
+// Balance truth = posted FinancialAccountMovement ledger (never editable balance).
+// ---------------------------------------------------------------------------
+
+model FinancialAccount {
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String                 @map("company_id") @db.Uuid
+  code        String
+  name        String
+  type        FinancialAccountType
+  currency    CurrencyCode
+  status      FinancialAccountStatus @default(ACTIVE)
+  isDefault   Boolean                @default(false) @map("is_default")
+  description String?
+  bankName      String? @map("bank_name")
+  accountNumber String? @map("account_number")
+  iban          String?
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User?   @relation("FinancialAccountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  movements FinancialAccountMovement[]
+  transfersAsSource      FinancialAccountTransfer[] @relation("FinancialAccountTransferSource")
+  transfersAsDestination FinancialAccountTransfer[] @relation("FinancialAccountTransferDestination")
+  capitalContributions   CapitalContribution[]
+  loansAsReceivingDefault Loan[] @relation("LoanReceivingAccount")
+  loanDisbursements      LoanDisbursement[]
+  loanRepayments         LoanRepayment[]
+  fxConversionsAsSource      FxConversion[] @relation("FxConversionSourceAccount")
+  fxConversionsAsDestination FxConversion[] @relation("FxConversionDestinationAccount")
+  fxConversionsAsFee         FxConversion[] @relation("FxConversionFeeAccount")
+  payments                   Payment[]
+  receipts                   Receipt[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, currency])
+  @@index([companyId, type])
+  @@index([companyId, isDefault])
+  @@index([companyId, name])
+  @@map("financial_accounts")
+}
+
+/// Append-only account money ledger. Posted rows are immutable; corrections = REVERSAL.
+model FinancialAccountMovement {
+  id          String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String                             @map("company_id") @db.Uuid
+  accountId   String                             @map("account_id") @db.Uuid
+  direction   FinancialAccountMovementDirection
+  amount      Decimal                            @db.Decimal(24, 6)
+  currency    CurrencyCode
+  type        FinancialAccountMovementType
+  /// Provenance key (OPENING_BALANCE, ACCOUNT_TRANSFER, …). Free-text is not primary linkage.
+  sourceType  String                             @map("source_type")
+  sourceId    String?                            @map("source_id") @db.Uuid
+  effectiveAt DateTime                           @map("effective_at") @db.Timestamptz(3)
+  postedAt    DateTime                           @map("posted_at") @db.Timestamptz(3)
+  description String?
+  /// Idempotency key for opening-balance / future money commands (company-scoped).
+  requestId   String?                            @map("request_id") @db.Uuid
+  createdById String?                            @map("created_by_id") @db.Uuid
+  createdAt   DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  account   FinancialAccount @relation(fields: [accountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User?            @relation("FinancialAccountMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, accountId, postedAt])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, type, postedAt])
+  @@index([companyId, requestId])
+  @@map("financial_account_movements")
+}
+
+model FinancialAccountTransferSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("financial_account_transfer_sequences")
+}
+
+model FinancialAccountTransfer {
+  id                   String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId            String                          @map("company_id") @db.Uuid
+  number               String
+  sourceAccountId      String                          @map("source_account_id") @db.Uuid
+  destinationAccountId String                          @map("destination_account_id") @db.Uuid
+  amount               Decimal                         @db.Decimal(24, 6)
+  currency             CurrencyCode
+  status               FinancialAccountTransferStatus  @default(DRAFT)
+  effectiveAt          DateTime                        @map("effective_at") @db.Timestamptz(3)
+  notes                String?
+  requestId            String?                         @map("request_id") @db.Uuid
+  createdById          String                          @map("created_by_id") @db.Uuid
+  postedAt             DateTime?                       @map("posted_at") @db.Timestamptz(3)
+  postedById           String?                         @map("posted_by_id") @db.Uuid
+  cancelledAt          DateTime?                       @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById        String?                         @map("cancelled_by_id") @db.Uuid
+  reversedAt           DateTime?                       @map("reversed_at") @db.Timestamptz(3)
+  reversedById         String?                         @map("reversed_by_id") @db.Uuid
+  /// When this row is a reversal document, points at the original posted transfer.
+  reversalOfTransferId String?                         @map("reversal_of_transfer_id") @db.Uuid
+  createdAt            DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company            Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceAccount      FinancialAccount @relation("FinancialAccountTransferSource", fields: [sourceAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+  destinationAccount FinancialAccount @relation("FinancialAccountTransferDestination", fields: [destinationAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy          User             @relation("FinancialAccountTransferCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy           User?            @relation("FinancialAccountTransferPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy        User?            @relation("FinancialAccountTransferCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy         User?            @relation("FinancialAccountTransferReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf         FinancialAccountTransfer?  @relation("FinancialAccountTransferReversal", fields: [reversalOfTransferId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals          FinancialAccountTransfer[] @relation("FinancialAccountTransferReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, sourceAccountId])
+  @@index([companyId, destinationAccountId])
+  @@index([companyId, currency, createdAt])
+  @@index([companyId, requestId])
+  @@map("financial_account_transfers")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.3 — Capital + Funding + Loans
+// Equity ≠ Debt ≠ Revenue. Outstanding is always derived.
+// ---------------------------------------------------------------------------
+
+model CapitalContributionSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("capital_contribution_sequences")
+}
+
+model CapitalContribution {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String                    @map("company_id") @db.Uuid
+  number           String
+  fundingType      CapitalFundingType        @map("funding_type")
+  contributorType  FinanceCounterpartyType   @map("contributor_type")
+  contributorId    String?                   @map("contributor_id") @db.Uuid
+  contributorName  String                    @map("contributor_name")
+  accountId        String                    @map("account_id") @db.Uuid
+  amount           Decimal                   @db.Decimal(24, 6)
+  currency         CurrencyCode
+  status           CapitalContributionStatus @default(DRAFT)
+  effectiveAt      DateTime                  @map("effective_at") @db.Timestamptz(3)
+  reference        String?
+  notes            String?
+  requestId        String?                   @map("request_id") @db.Uuid
+  createdById      String                    @map("created_by_id") @db.Uuid
+  postedAt         DateTime?                 @map("posted_at") @db.Timestamptz(3)
+  postedById       String?                   @map("posted_by_id") @db.Uuid
+  cancelledAt      DateTime?                 @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById    String?                   @map("cancelled_by_id") @db.Uuid
+  reversedAt       DateTime?                 @map("reversed_at") @db.Timestamptz(3)
+  reversedById     String?                   @map("reversed_by_id") @db.Uuid
+  reversalOfId     String?                   @map("reversal_of_id") @db.Uuid
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  account     FinancialAccount   @relation(fields: [accountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User               @relation("CapitalContributionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?              @relation("CapitalContributionPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?              @relation("CapitalContributionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy  User?              @relation("CapitalContributionReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf  CapitalContribution?  @relation("CapitalContributionReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals   CapitalContribution[] @relation("CapitalContributionReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, accountId])
+  @@index([companyId, fundingType])
+  @@index([companyId, currency, createdAt])
+  @@index([companyId, requestId])
+  @@map("capital_contributions")
+}
+
+model LoanSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("loan_sequences")
+}
+
+model Loan {
+  id                        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                 String                  @map("company_id") @db.Uuid
+  number                    String
+  lenderType                FinanceCounterpartyType @map("lender_type")
+  lenderId                  String?                 @map("lender_id") @db.Uuid
+  lenderName                String                  @map("lender_name")
+  currency                  CurrencyCode
+  /// Agreed ceiling — not the same as received principal.
+  contractedPrincipal       Decimal                 @map("contracted_principal") @db.Decimal(24, 6)
+  /// Optional reference FX for foreign-currency loans (display/reporting; never revalues principal).
+  referenceFxRate           Decimal?                @map("reference_fx_rate") @db.Decimal(24, 8)
+  referenceFxBaseCurrency   CurrencyCode?           @map("reference_fx_base_currency")
+  referenceFxQuoteCurrency  CurrencyCode?           @map("reference_fx_quote_currency")
+  dueDate                   DateTime?               @map("due_date") @db.Timestamptz(3)
+  interestRate              Decimal?                @map("interest_rate") @db.Decimal(24, 8)
+  interestNotes             String?                 @map("interest_notes")
+  feeAmount                 Decimal?                @map("fee_amount") @db.Decimal(24, 6)
+  notes                     String?
+  reference                 String?
+  status                    LoanStatus              @default(DRAFT)
+  /// Default receiving account hint; each disbursement carries its own accountId.
+  receivingAccountId        String?                 @map("receiving_account_id") @db.Uuid
+  requestId                 String?                 @map("request_id") @db.Uuid
+  createdById               String                  @map("created_by_id") @db.Uuid
+  postedAt                  DateTime?               @map("posted_at") @db.Timestamptz(3)
+  postedById                String?                 @map("posted_by_id") @db.Uuid
+  cancelledAt               DateTime?               @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById             String?                 @map("cancelled_by_id") @db.Uuid
+  reversedAt                DateTime?               @map("reversed_at") @db.Timestamptz(3)
+  reversedById              String?                 @map("reversed_by_id") @db.Uuid
+  settledAt                 DateTime?               @map("settled_at") @db.Timestamptz(3)
+  createdAt                 DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  receivingAccount FinancialAccount? @relation("LoanReceivingAccount", fields: [receivingAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy        User              @relation("LoanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy         User?             @relation("LoanPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy      User?             @relation("LoanCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy       User?             @relation("LoanReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  disbursements    LoanDisbursement[]
+  repayments       LoanRepayment[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, currency, createdAt])
+  @@index([companyId, dueDate])
+  @@index([companyId, requestId])
+  @@map("loans")
+}
+
+model LoanDisbursementSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("loan_disbursement_sequences")
+}
+
+model LoanDisbursement {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String                 @map("company_id") @db.Uuid
+  loanId        String                 @map("loan_id") @db.Uuid
+  number        String
+  accountId     String                 @map("account_id") @db.Uuid
+  amount        Decimal                @db.Decimal(24, 6)
+  currency      CurrencyCode
+  status        LoanDisbursementStatus @default(DRAFT)
+  effectiveAt   DateTime               @map("effective_at") @db.Timestamptz(3)
+  notes         String?
+  requestId     String?                @map("request_id") @db.Uuid
+  createdById   String                 @map("created_by_id") @db.Uuid
+  postedAt      DateTime?              @map("posted_at") @db.Timestamptz(3)
+  postedById    String?                @map("posted_by_id") @db.Uuid
+  cancelledAt   DateTime?              @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById String?                @map("cancelled_by_id") @db.Uuid
+  reversedAt    DateTime?              @map("reversed_at") @db.Timestamptz(3)
+  reversedById  String?                @map("reversed_by_id") @db.Uuid
+  reversalOfId  String?                @map("reversal_of_id") @db.Uuid
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  loan        Loan             @relation(fields: [loanId, companyId], references: [id, companyId], onDelete: Restrict)
+  account     FinancialAccount @relation(fields: [accountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User             @relation("LoanDisbursementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?            @relation("LoanDisbursementPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?            @relation("LoanDisbursementCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy  User?            @relation("LoanDisbursementReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf  LoanDisbursement?  @relation("LoanDisbursementReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals   LoanDisbursement[] @relation("LoanDisbursementReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, loanId, status])
+  @@index([companyId, accountId])
+  @@index([companyId, requestId])
+  @@map("loan_disbursements")
+}
+
+model LoanRepaymentSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("loan_repayment_sequences")
+}
+
+model LoanRepayment {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String              @map("company_id") @db.Uuid
+  loanId          String              @map("loan_id") @db.Uuid
+  number          String
+  accountId       String              @map("account_id") @db.Uuid
+  principalAmount Decimal             @map("principal_amount") @db.Decimal(24, 6)
+  interestAmount  Decimal             @default(0) @map("interest_amount") @db.Decimal(24, 6)
+  feeAmount       Decimal             @default(0) @map("fee_amount") @db.Decimal(24, 6)
+  currency        CurrencyCode
+  status          LoanRepaymentStatus @default(DRAFT)
+  effectiveAt     DateTime            @map("effective_at") @db.Timestamptz(3)
+  notes           String?
+  requestId       String?             @map("request_id") @db.Uuid
+  createdById     String              @map("created_by_id") @db.Uuid
+  postedAt        DateTime?           @map("posted_at") @db.Timestamptz(3)
+  postedById      String?             @map("posted_by_id") @db.Uuid
+  cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById   String?             @map("cancelled_by_id") @db.Uuid
+  reversedAt      DateTime?           @map("reversed_at") @db.Timestamptz(3)
+  reversedById    String?             @map("reversed_by_id") @db.Uuid
+  reversalOfId    String?             @map("reversal_of_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  loan        Loan             @relation(fields: [loanId, companyId], references: [id, companyId], onDelete: Restrict)
+  account     FinancialAccount @relation(fields: [accountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User             @relation("LoanRepaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?            @relation("LoanRepaymentPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?            @relation("LoanRepaymentCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy  User?            @relation("LoanRepaymentReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf  LoanRepayment?   @relation("LoanRepaymentReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals   LoanRepayment[]  @relation("LoanRepaymentReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, loanId, status])
+  @@index([companyId, accountId])
+  @@index([companyId, requestId])
+  @@map("loan_repayments")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.4 — Supplier Payables
+// Liability ledger is truth. Outstanding always derived. Cash does NOT move on recognition.
+// ---------------------------------------------------------------------------
+
+model SupplierPayableSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("supplier_payable_sequences")
+}
+
+model SupplierCreditSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("supplier_credit_sequences")
+}
+
+model SupplierPayable {
+  id                       String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                String                      @map("company_id") @db.Uuid
+  number                   String
+  supplierId               String                      @map("supplier_id") @db.Uuid
+  /// Null for OPENING balances — never invent a fake PO.
+  purchaseOrderId          String?                     @map("purchase_order_id") @db.Uuid
+  purchaseType             SupplierPayablePurchaseType @map("purchase_type")
+  /// Contractual obligation currency (FX_CREDIT stays foreign).
+  currency                 CurrencyCode
+  referenceFxRate          Decimal?                    @map("reference_fx_rate") @db.Decimal(24, 8)
+  referenceFxBaseCurrency  CurrencyCode?               @map("reference_fx_base_currency")
+  referenceFxQuoteCurrency CurrencyCode?               @map("reference_fx_quote_currency")
+  dueDate                  DateTime?                   @map("due_date") @db.Timestamptz(3)
+  status                   SupplierPayableStatus       @default(OPEN)
+  recognizedAt             DateTime                    @map("recognized_at") @db.Timestamptz(3)
+  notes                    String?
+  reference                String?
+  requestId                String?                     @map("request_id") @db.Uuid
+  createdAt                DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company      Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier     Supplier                  @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?           @relation(fields: [purchaseOrderId, companyId], references: [id, companyId], onDelete: Restrict)
+  lines        SupplierPayableLine[]
+  movements    SupplierLiabilityMovement[]
+  credits      SupplierCredit[]
+  allocations  SupplierPaymentAllocation[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, supplierId, currency])
+  @@index([companyId, dueDate])
+  @@index([companyId, requestId])
+  @@map("supplier_payables")
+}
+
+model SupplierPayableLine {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String       @map("company_id") @db.Uuid
+  payableId           String       @map("payable_id") @db.Uuid
+  goodsReceiptId      String       @map("goods_receipt_id") @db.Uuid
+  goodsReceiptItemId  String       @map("goods_receipt_item_id") @db.Uuid
+  purchaseOrderItemId String       @map("purchase_order_item_id") @db.Uuid
+  skuId               String?      @map("sku_id") @db.Uuid
+  quantity            Int
+  unitPrice           Decimal      @map("unit_price") @db.Decimal(24, 6)
+  lineAmount          Decimal      @map("line_amount") @db.Decimal(24, 6)
+  currency            CurrencyCode
+  recognizedAt        DateTime     @map("recognized_at") @db.Timestamptz(3)
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  payable           SupplierPayable   @relation(fields: [payableId, companyId], references: [id, companyId], onDelete: Restrict)
+  goodsReceipt      GoodsReceipt      @relation(fields: [goodsReceiptId, companyId], references: [id, companyId], onDelete: Restrict)
+  goodsReceiptItem  GoodsReceiptItem  @relation(fields: [goodsReceiptItemId, companyId], references: [id, companyId], onDelete: Restrict)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([goodsReceiptItemId, companyId])
+  @@index([companyId, payableId])
+  @@index([companyId, goodsReceiptId])
+  @@map("supplier_payable_lines")
+}
+
+model SupplierLiabilityMovement {
+  id               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String                             @map("company_id") @db.Uuid
+  payableId        String?                            @map("payable_id") @db.Uuid
+  supplierId       String                             @map("supplier_id") @db.Uuid
+  direction        SupplierLiabilityMovementDirection
+  type             SupplierLiabilityMovementType
+  amount           Decimal                            @db.Decimal(24, 6)
+  currency         CurrencyCode
+  sourceType       String                             @map("source_type")
+  sourceId         String                             @map("source_id") @db.Uuid
+  supplierCreditId String?                            @map("supplier_credit_id") @db.Uuid
+  effectiveAt      DateTime                           @map("effective_at") @db.Timestamptz(3)
+  notes            String?
+  requestId        String?                            @map("request_id") @db.Uuid
+  createdById      String                             @map("created_by_id") @db.Uuid
+  createdAt        DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  payable        SupplierPayable? @relation(fields: [payableId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplier       Supplier         @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  supplierCredit SupplierCredit?  @relation(fields: [supplierCreditId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy      User             @relation("SupplierLiabilityMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, sourceType, sourceId, type])
+  @@index([companyId, payableId, createdAt])
+  @@index([companyId, supplierId, currency])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, requestId])
+  @@map("supplier_liability_movements")
+}
+
+model SupplierCredit {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
+  number         String
+  supplierId     String               @map("supplier_id") @db.Uuid
+  currency       CurrencyCode
+  originalAmount Decimal              @map("original_amount") @db.Decimal(24, 6)
+  status         SupplierCreditStatus @default(OPEN)
+  sourceType     String               @map("source_type")
+  sourceId       String               @map("source_id") @db.Uuid
+  payableId      String?              @map("payable_id") @db.Uuid
+  notes          String?
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier  Supplier                    @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
+  payable   SupplierPayable?            @relation(fields: [payableId, companyId], references: [id, companyId], onDelete: Restrict)
+  movements SupplierLiabilityMovement[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@unique([companyId, sourceType, sourceId])
+  @@index([companyId, supplierId, status])
+  @@map("supplier_credits")
+}
+
+model SupplierPaymentAllocation {
+  id                String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String                           @map("company_id") @db.Uuid
+  payableId         String                           @map("payable_id") @db.Uuid
+  amount            Decimal                          @db.Decimal(24, 6)
+  currency          CurrencyCode
+  paymentSourceType String?                          @map("payment_source_type")
+  paymentSourceId   String?                          @map("payment_source_id") @db.Uuid
+  requestId         String?                          @map("request_id") @db.Uuid
+  status            SupplierPaymentAllocationStatus  @default(POSTED)
+  effectiveAt       DateTime                         @map("effective_at") @db.Timestamptz(3)
+  createdById       String                           @map("created_by_id") @db.Uuid
+  createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  payable   SupplierPayable @relation(fields: [payableId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User            @relation("SupplierPaymentAllocationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, payableId])
+  @@index([companyId, requestId])
+  @@map("supplier_payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.5 — FX + Currency Ledger
+// Currency ledger is projected from FxConversion + AccountMovement (no ledger table).
+// Valuation never mutates cash / payable / loan. No automatic FX gain/loss journal.
+// ---------------------------------------------------------------------------
+
+model FxRate {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String           @map("company_id") @db.Uuid
+  baseCurrency    CurrencyCode     @map("base_currency")
+  quoteCurrency   CurrencyCode     @map("quote_currency")
+  rate            Decimal          @db.Decimal(24, 8)
+  rateType        FxRateType       @map("rate_type")
+  sourceType      FxRateSourceType @default(MANUAL) @map("source_type")
+  sourceReference String?          @map("source_reference")
+  effectiveAt     DateTime         @map("effective_at") @db.Timestamptz(3)
+  notes           String?
+  archivedAt      DateTime?        @map("archived_at") @db.Timestamptz(3)
+  createdById     String           @map("created_by_id") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy    User           @relation("FxRateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  conversions  FxConversion[]
+
+  @@unique([id, companyId])
+  @@index([companyId, baseCurrency, quoteCurrency, rateType, effectiveAt(sort: Desc)])
+  @@index([companyId, effectiveAt(sort: Desc)])
+  @@index([companyId, archivedAt])
+  @@map("fx_rates")
+}
+
+model FxConversionSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("fx_conversion_sequences")
+}
+
+model FxConversion {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId            String             @map("company_id") @db.Uuid
+  number               String
+  sourceAccountId      String             @map("source_account_id") @db.Uuid
+  destinationAccountId String             @map("destination_account_id") @db.Uuid
+  fromAmount           Decimal            @map("from_amount") @db.Decimal(24, 6)
+  fromCurrency         CurrencyCode       @map("from_currency")
+  toAmount             Decimal            @map("to_amount") @db.Decimal(24, 6)
+  toCurrency           CurrencyCode       @map("to_currency")
+  appliedRate          Decimal            @map("applied_rate") @db.Decimal(24, 8)
+  rateBaseCurrency     CurrencyCode       @map("rate_base_currency")
+  rateQuoteCurrency    CurrencyCode       @map("rate_quote_currency")
+  rateType             FxRateType         @default(CONVERSION) @map("rate_type")
+  fxRateId             String?            @map("fx_rate_id") @db.Uuid
+  feeAmount            Decimal?           @map("fee_amount") @db.Decimal(24, 6)
+  feeCurrency          CurrencyCode?      @map("fee_currency")
+  feeAccountId         String?            @map("fee_account_id") @db.Uuid
+  status               FxConversionStatus @default(DRAFT)
+  effectiveAt          DateTime           @map("effective_at") @db.Timestamptz(3)
+  notes                String?
+  requestId            String?            @map("request_id") @db.Uuid
+  createdById          String             @map("created_by_id") @db.Uuid
+  postedAt             DateTime?          @map("posted_at") @db.Timestamptz(3)
+  postedById           String?            @map("posted_by_id") @db.Uuid
+  cancelledAt          DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById        String?            @map("cancelled_by_id") @db.Uuid
+  reversedAt           DateTime?          @map("reversed_at") @db.Timestamptz(3)
+  reversedById         String?            @map("reversed_by_id") @db.Uuid
+  reversalOfId         String?            @map("reversal_of_id") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company            Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceAccount      FinancialAccount @relation("FxConversionSourceAccount", fields: [sourceAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+  destinationAccount FinancialAccount @relation("FxConversionDestinationAccount", fields: [destinationAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+  feeAccount         FinancialAccount? @relation("FxConversionFeeAccount", fields: [feeAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+  fxRate             FxRate?          @relation(fields: [fxRateId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy          User             @relation("FxConversionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy           User?            @relation("FxConversionPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy        User?            @relation("FxConversionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy         User?            @relation("FxConversionReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf         FxConversion?    @relation("FxConversionReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals          FxConversion[]   @relation("FxConversionReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, sourceAccountId])
+  @@index([companyId, destinationAccountId])
+  @@index([companyId, fromCurrency, toCurrency])
+  @@index([companyId, fxRateId])
+  @@index([companyId, reversalOfId])
+  @@index([companyId, requestId])
+  @@map("fx_conversions")
+}
+
+model PaymentSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("payment_sequences")
+}
+
+/// Standalone money-out. purposeType=SUPPLIER does NOT settle SupplierPayable (Phase 4.9).
+model Payment {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String              @map("company_id") @db.Uuid
+  number                String
+  accountId             String              @map("account_id") @db.Uuid
+  amount                Decimal             @db.Decimal(24, 6)
+  currency              CurrencyCode
+  status                PaymentStatus       @default(DRAFT)
+  effectiveAt           DateTime            @map("effective_at") @db.Timestamptz(3)
+  counterpartyType      FinanceCounterpartyType? @map("counterparty_type")
+  counterpartyId        String?             @map("counterparty_id") @db.Uuid
+  counterpartyName      String?             @map("counterparty_name")
+  purposeType           PaymentPurposeType  @map("purpose_type")
+  purposeReferenceType  String?             @map("purpose_reference_type")
+  purposeReferenceId    String?             @map("purpose_reference_id") @db.Uuid
+  reference             String?
+  externalReference     String?             @map("external_reference")
+  notes                 String?
+  requestId             String?             @map("request_id") @db.Uuid
+  createdById           String              @map("created_by_id") @db.Uuid
+  postedAt              DateTime?           @map("posted_at") @db.Timestamptz(3)
+  postedById            String?             @map("posted_by_id") @db.Uuid
+  cancelledAt           DateTime?           @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById         String?             @map("cancelled_by_id") @db.Uuid
+  reversedAt            DateTime?           @map("reversed_at") @db.Timestamptz(3)
+  reversedById          String?             @map("reversed_by_id") @db.Uuid
+  reversalOfId          String?             @map("reversal_of_id") @db.Uuid
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  account     FinancialAccount @relation(fields: [accountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User             @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?            @relation("PaymentPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?            @relation("PaymentCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy  User?            @relation("PaymentReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf  Payment?         @relation("PaymentReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals   Payment[]        @relation("PaymentReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, accountId])
+  @@index([companyId, purposeType])
+  @@index([companyId, currency, createdAt])
+  @@index([companyId, reversalOfId])
+  @@index([companyId, requestId])
+  @@map("payments")
+}
+
+model ReceiptSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("receipt_sequences")
+}
+
+/// Standalone money-in. Does not replace CapitalContribution / LoanDisbursement posting.
+model Receipt {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId            String             @map("company_id") @db.Uuid
+  number               String
+  accountId            String             @map("account_id") @db.Uuid
+  amount               Decimal            @db.Decimal(24, 6)
+  currency             CurrencyCode
+  status               ReceiptStatus      @default(DRAFT)
+  effectiveAt          DateTime           @map("effective_at") @db.Timestamptz(3)
+  counterpartyType     FinanceCounterpartyType? @map("counterparty_type")
+  counterpartyId       String?            @map("counterparty_id") @db.Uuid
+  counterpartyName     String?            @map("counterparty_name")
+  sourceType           ReceiptSourceType  @map("source_type")
+  sourceReferenceType  String?            @map("source_reference_type")
+  sourceReferenceId    String?            @map("source_reference_id") @db.Uuid
+  reference            String?
+  externalReference    String?            @map("external_reference")
+  notes                String?
+  requestId            String?            @map("request_id") @db.Uuid
+  createdById          String             @map("created_by_id") @db.Uuid
+  postedAt             DateTime?          @map("posted_at") @db.Timestamptz(3)
+  postedById           String?            @map("posted_by_id") @db.Uuid
+  cancelledAt          DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById        String?            @map("cancelled_by_id") @db.Uuid
+  reversedAt           DateTime?          @map("reversed_at") @db.Timestamptz(3)
+  reversedById         String?            @map("reversed_by_id") @db.Uuid
+  reversalOfId         String?            @map("reversal_of_id") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  account     FinancialAccount @relation(fields: [accountId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User             @relation("ReceiptCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?            @relation("ReceiptPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User?            @relation("ReceiptCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversedBy  User?            @relation("ReceiptReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  reversalOf  Receipt?         @relation("ReceiptReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals   Receipt[]        @relation("ReceiptReversal")
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, accountId])
+  @@index([companyId, sourceType])
+  @@index([companyId, currency, createdAt])
+  @@index([companyId, reversalOfId])
+  @@index([companyId, requestId])
+  @@map("receipts")
+}

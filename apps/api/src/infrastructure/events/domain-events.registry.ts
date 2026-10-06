@@ -1,0 +1,210 @@
+/**
+ * Stable machine-readable domain event keys.
+ * Keep separate from AUDIT_ACTIONS — related facts, different concepts.
+ */
+export const DOMAIN_EVENTS = {
+  COMPANY_UPDATED: 'company.updated',
+
+  MEMBER_CREATED: 'member.created',
+  MEMBER_STATUS_CHANGED: 'member.status_changed',
+  MEMBER_REMOVED: 'member.removed',
+  MEMBER_REACTIVATED: 'member.reactivated',
+  MEMBER_ROLES_CHANGED: 'member.roles_changed',
+
+  ROLE_CREATED: 'role.created',
+  ROLE_UPDATED: 'role.updated',
+  ROLE_PERMISSIONS_CHANGED: 'role.permissions_changed',
+  ROLE_DELETED: 'role.deleted',
+
+  CATALOG_PRODUCT_CREATED: 'catalog.product.created',
+  CATALOG_PRODUCT_UPDATED: 'catalog.product.updated',
+  CATALOG_PRODUCT_DEACTIVATED: 'catalog.product.deactivated',
+  CATALOG_PRODUCT_ACTIVATED: 'catalog.product.activated',
+  CATALOG_PRODUCT_ARCHIVED: 'catalog.product.archived',
+
+  CATALOG_SKU_CREATED: 'catalog.sku.created',
+  CATALOG_SKU_UPDATED: 'catalog.sku.updated',
+  CATALOG_SKU_DEACTIVATED: 'catalog.sku.deactivated',
+  CATALOG_SKU_ACTIVATED: 'catalog.sku.activated',
+  CATALOG_SKU_ARCHIVED: 'catalog.sku.archived',
+
+  CATALOG_BARCODE_CREATED: 'catalog.barcode.created',
+  CATALOG_BARCODE_INTERNAL_GENERATED: 'catalog.barcode.internal_generated',
+  CATALOG_BARCODE_PRIMARY_CHANGED: 'catalog.barcode.primary_changed',
+  CATALOG_BARCODE_ARCHIVED: 'catalog.barcode.archived',
+  /** @deprecated Phase 1.1 — prefer CATALOG_BARCODE_CREATED */
+  CATALOG_BARCODE_ASSIGNED: 'catalog.barcode.assigned',
+  /** @deprecated Phase 1.1 — prefer CATALOG_BARCODE_PRIMARY_CHANGED */
+  CATALOG_BARCODE_UPDATED: 'catalog.barcode.updated',
+
+  CATALOG_VARIANT_OPTION_CREATED: 'catalog.variant_option.created',
+  CATALOG_VARIANT_OPTION_UPDATED: 'catalog.variant_option.updated',
+  CATALOG_VARIANT_VALUE_CREATED: 'catalog.variant_value.created',
+  CATALOG_VARIANT_VALUE_UPDATED: 'catalog.variant_value.updated',
+  CATALOG_VARIANT_VALUE_DEACTIVATED: 'catalog.variant_value.deactivated',
+  CATALOG_VARIANT_VALUE_ACTIVATED: 'catalog.variant_value.activated',
+
+  CATALOG_BRAND_CREATED: 'catalog.brand.created',
+  CATALOG_BRAND_UPDATED: 'catalog.brand.updated',
+  CATALOG_BRAND_ARCHIVED: 'catalog.brand.archived',
+  CATALOG_BRAND_ACTIVATED: 'catalog.brand.activated',
+
+  CATALOG_CATEGORY_CREATED: 'catalog.category.created',
+  CATALOG_CATEGORY_UPDATED: 'catalog.category.updated',
+  CATALOG_CATEGORY_MOVED: 'catalog.category.moved',
+  CATALOG_CATEGORY_ARCHIVED: 'catalog.category.archived',
+  CATALOG_CATEGORY_ACTIVATED: 'catalog.category.activated',
+
+  CATALOG_ATTRIBUTE_CREATED: 'catalog.attribute.created',
+  CATALOG_ATTRIBUTE_UPDATED: 'catalog.attribute.updated',
+  CATALOG_ATTRIBUTE_ARCHIVED: 'catalog.attribute.archived',
+  CATALOG_ATTRIBUTE_OPTION_CREATED: 'catalog.attribute_option.created',
+  CATALOG_ATTRIBUTE_OPTION_UPDATED: 'catalog.attribute_option.updated',
+  CATALOG_ATTRIBUTE_OPTION_DEACTIVATED: 'catalog.attribute_option.deactivated',
+  CATALOG_ATTRIBUTE_OPTION_ACTIVATED: 'catalog.attribute_option.activated',
+  CATALOG_CATEGORY_ATTRIBUTES_UPDATED: 'catalog.category_attributes.updated',
+  CATALOG_PRODUCT_ATTRIBUTES_UPDATED: 'catalog.product_attributes.updated',
+  CATALOG_SKU_ATTRIBUTES_UPDATED: 'catalog.sku_attributes.updated',
+  CATALOG_BULK_OPERATION_COMPLETED: 'catalog.bulk_operation.completed',
+
+  PURCHASING_SUPPLIER_CREATED: 'purchasing.supplier.created',
+  PURCHASING_SUPPLIER_UPDATED: 'purchasing.supplier.updated',
+  PURCHASING_SUPPLIER_STATUS_CHANGED: 'purchasing.supplier.status_changed',
+  PURCHASING_SUPPLIER_ARCHIVED: 'purchasing.supplier.archived',
+  PURCHASING_SUPPLIER_CONTACT_CREATED: 'purchasing.supplier_contact.created',
+  PURCHASING_SUPPLIER_CONTACT_UPDATED: 'purchasing.supplier_contact.updated',
+  PURCHASING_SUPPLIER_PRIMARY_CONTACT_CHANGED: 'purchasing.supplier_contact.primary_changed',
+  PURCHASING_SUPPLIER_CONTACT_ARCHIVED: 'purchasing.supplier_contact.archived',
+  PURCHASING_SUPPLIER_NOTE_CREATED: 'purchasing.supplier_note.created',
+
+  PURCHASING_SUPPLIER_OFFER_CREATED: 'purchasing.supplier_offer.created',
+  PURCHASING_SUPPLIER_OFFER_UPDATED: 'purchasing.supplier_offer.updated',
+  PURCHASING_SUPPLIER_OFFER_ARCHIVED: 'purchasing.supplier_offer.archived',
+
+  PURCHASING_PURCHASE_ORDER_CREATED: 'purchasing.purchase_order.created',
+  PURCHASING_PURCHASE_ORDER_UPDATED: 'purchasing.purchase_order.updated',
+  PURCHASING_PURCHASE_ORDER_ITEM_ADDED: 'purchasing.purchase_order.item_added',
+  PURCHASING_PURCHASE_ORDER_ITEM_UPDATED: 'purchasing.purchase_order.item_updated',
+  PURCHASING_PURCHASE_ORDER_ITEM_REMOVED: 'purchasing.purchase_order.item_removed',
+  PURCHASING_PURCHASE_ORDER_APPROVED: 'purchasing.purchase_order.approved',
+  PURCHASING_PURCHASE_ORDER_ORDERED: 'purchasing.purchase_order.ordered',
+  PURCHASING_PURCHASE_ORDER_CANCELLED: 'purchasing.purchase_order.cancelled',
+
+  PURCHASING_PURCHASE_COST_ADDED: 'purchasing.purchase_cost.added',
+  PURCHASING_PURCHASE_COST_UPDATED: 'purchasing.purchase_cost.updated',
+  PURCHASING_PURCHASE_COST_VOIDED: 'purchasing.purchase_cost.voided',
+  PURCHASING_PURCHASE_COST_REMOVED: 'purchasing.purchase_cost.removed',
+
+  PURCHASING_PURCHASE_ORDER_CORRECTED: 'purchasing.purchase_order.corrected',
+  PURCHASING_PURCHASE_DUE_DATE_CHANGED: 'purchasing.purchase_due_date.changed',
+  PURCHASING_PURCHASE_FX_TERMS_CHANGED: 'purchasing.purchase_fx_terms.changed',
+  PURCHASING_PURCHASE_DISCREPANCY_RECORDED: 'purchasing.purchase_discrepancy.recorded',
+  PURCHASING_PURCHASE_DISCREPANCY_RESOLVED: 'purchasing.purchase_discrepancy.resolved',
+  PURCHASING_PURCHASE_ORDER_SHORT_CLOSED: 'purchasing.purchase_order.short_closed',
+  PURCHASING_PURCHASE_RETURN_CREATED: 'purchasing.purchase_return.created',
+  PURCHASING_PURCHASE_RETURN_APPROVED: 'purchasing.purchase_return.approved',
+  PURCHASING_PURCHASE_RETURN_CANCELLED: 'purchasing.purchase_return.cancelled',
+
+  WAREHOUSE_CREATED: 'warehouse.created',
+  WAREHOUSE_UPDATED: 'warehouse.updated',
+  WAREHOUSE_ACTIVATED: 'warehouse.activated',
+  WAREHOUSE_DEACTIVATED: 'warehouse.deactivated',
+  WAREHOUSE_DEFAULT_CHANGED: 'warehouse.default_changed',
+
+  WAREHOUSE_LOCATION_CREATED: 'warehouse.location.created',
+  WAREHOUSE_LOCATION_UPDATED: 'warehouse.location.updated',
+  WAREHOUSE_LOCATION_MOVED: 'warehouse.location.moved',
+  WAREHOUSE_LOCATION_ACTIVATED: 'warehouse.location.activated',
+  WAREHOUSE_LOCATION_DEACTIVATED: 'warehouse.location.deactivated',
+
+  WAREHOUSE_GOODS_RECEIPT_CREATED: 'warehouse.goods_receipt.created',
+  WAREHOUSE_GOODS_RECEIPT_POSTED: 'warehouse.goods_receipt.posted',
+  WAREHOUSE_GOODS_RECEIPT_CANCELLED: 'warehouse.goods_receipt.cancelled',
+
+  WAREHOUSE_BATCH_CREATED: 'warehouse.batch.created',
+  WAREHOUSE_BATCH_METADATA_UPDATED: 'warehouse.batch.metadata_updated',
+
+  WAREHOUSE_PUTAWAY_CREATED: 'warehouse.putaway.created',
+  WAREHOUSE_PUTAWAY_COMPLETED: 'warehouse.putaway.completed',
+  WAREHOUSE_PUTAWAY_CANCELLED: 'warehouse.putaway.cancelled',
+  WAREHOUSE_INVENTORY_MOVEMENT_POSTED: 'warehouse.inventory_movement.posted',
+
+  WAREHOUSE_STOCK_TRANSFER_CREATED: 'warehouse.stock_transfer.created',
+  WAREHOUSE_STOCK_TRANSFER_UPDATED: 'warehouse.stock_transfer.updated',
+  WAREHOUSE_STOCK_TRANSFER_DISPATCHED: 'warehouse.stock_transfer.dispatched',
+  WAREHOUSE_STOCK_TRANSFER_COMPLETED: 'warehouse.stock_transfer.completed',
+  WAREHOUSE_STOCK_TRANSFER_CANCELLED: 'warehouse.stock_transfer.cancelled',
+
+  WAREHOUSE_STOCK_CLASSIFICATION_CHANGED: 'warehouse.stock_classification.changed',
+
+  WAREHOUSE_STOCK_ISSUE_CREATED: 'warehouse.stock_issue.created',
+  WAREHOUSE_STOCK_ISSUE_UPDATED: 'warehouse.stock_issue.updated',
+  WAREHOUSE_STOCK_ISSUE_POSTED: 'warehouse.stock_issue.posted',
+  WAREHOUSE_STOCK_ISSUE_CANCELLED: 'warehouse.stock_issue.cancelled',
+
+  WAREHOUSE_INVENTORY_ADJUSTMENT_CREATED: 'warehouse.inventory_adjustment.created',
+  WAREHOUSE_INVENTORY_ADJUSTMENT_APPROVED: 'warehouse.inventory_adjustment.approved',
+  WAREHOUSE_INVENTORY_ADJUSTMENT_POSTED: 'warehouse.inventory_adjustment.posted',
+  WAREHOUSE_INVENTORY_ADJUSTMENT_CANCELLED: 'warehouse.inventory_adjustment.cancelled',
+
+  WAREHOUSE_STOCK_COUNT_CREATED: 'warehouse.stock_count.created',
+  WAREHOUSE_STOCK_COUNT_STARTED: 'warehouse.stock_count.started',
+  WAREHOUSE_STOCK_COUNT_SUBMITTED: 'warehouse.stock_count.submitted',
+  WAREHOUSE_STOCK_COUNT_APPROVED: 'warehouse.stock_count.approved',
+  WAREHOUSE_STOCK_COUNT_COMPLETED: 'warehouse.stock_count.completed',
+  WAREHOUSE_STOCK_COUNT_CANCELLED: 'warehouse.stock_count.cancelled',
+
+  WAREHOUSE_SUPPLIER_RETURN_EXECUTION_CREATED: 'warehouse.supplier_return_execution.created',
+  WAREHOUSE_SUPPLIER_RETURN_DISPATCHED: 'warehouse.supplier_return_execution.dispatched',
+  WAREHOUSE_SUPPLIER_RETURN_EXECUTION_CANCELLED: 'warehouse.supplier_return_execution.cancelled',
+
+  WAREHOUSE_INVENTORY_RESERVED: 'warehouse.inventory.reserved',
+  WAREHOUSE_INVENTORY_RESERVATION_RELEASED: 'warehouse.inventory.reservation_released',
+  WAREHOUSE_INVENTORY_RESERVATION_CONSUMED: 'warehouse.inventory.reservation_consumed',
+  WAREHOUSE_INVENTORY_RESERVATION_EXPIRED: 'warehouse.inventory.reservation_expired',
+  WAREHOUSE_INVENTORY_COST_LAYER_CREATED: 'warehouse.inventory.cost_layer_created',
+  WAREHOUSE_INVENTORY_COST_CONSUMED: 'warehouse.inventory.cost_consumed',
+
+  PURCHASING_PURCHASE_ORDER_PARTIALLY_RECEIVED: 'purchasing.purchase_order.partially_received',
+  PURCHASING_PURCHASE_ORDER_RECEIVED: 'purchasing.purchase_order.received',
+
+  FINANCIAL_ACCOUNT_CREATED: 'finance.account.created',
+  FINANCIAL_ACCOUNT_UPDATED: 'finance.account.updated',
+  FINANCIAL_ACCOUNT_ARCHIVED: 'finance.account.archived',
+  FINANCIAL_ACCOUNT_ACTIVATED: 'finance.account.activated',
+  FINANCIAL_ACCOUNT_DEACTIVATED: 'finance.account.deactivated',
+  FINANCIAL_ACCOUNT_DEFAULT_CHANGED: 'finance.account.default_changed',
+  OPENING_BALANCE_RECORDED: 'finance.opening_balance.recorded',
+  ACCOUNT_TRANSFER_CREATED: 'finance.account_transfer.created',
+  ACCOUNT_TRANSFER_POSTED: 'finance.account_transfer.posted',
+  ACCOUNT_TRANSFER_CANCELLED: 'finance.account_transfer.cancelled',
+  ACCOUNT_TRANSFER_REVERSED: 'finance.account_transfer.reversed',
+
+  CAPITAL_INJECTED: 'finance.capital.injected',
+  CAPITAL_CONTRIBUTION_REVERSED: 'finance.capital.reversed',
+  LOAN_CREATED: 'finance.loan.created',
+  LOAN_DISBURSED: 'finance.loan.disbursed',
+  LOAN_REPAID: 'finance.loan.repaid',
+  LOAN_SETTLED: 'finance.loan.settled',
+  LOAN_DISBURSEMENT_REVERSED: 'finance.loan.disbursement_reversed',
+  LOAN_REPAYMENT_REVERSED: 'finance.loan.repayment_reversed',
+
+  SUPPLIER_PAYABLE_CREATED: 'finance.payable.created',
+  SUPPLIER_PAYABLE_ADJUSTED: 'finance.payable.adjusted',
+  SUPPLIER_PAYABLE_SETTLED: 'finance.payable.settled',
+  SUPPLIER_PAYABLE_OPENING_RECORDED: 'finance.payable.opening_recorded',
+  SUPPLIER_PAYABLE_ALLOCATION_POSTED: 'finance.payable.allocation_posted',
+  SUPPLIER_CREDIT_CREATED: 'finance.payable.credit_created',
+  SUPPLIER_PAYMENT_RECORDED: 'finance.payment.recorded',
+
+  FX_RATE_CREATED: 'finance.fx.rate_created',
+  FX_RATE_ARCHIVED: 'finance.fx.rate_archived',
+  FX_CONVERSION_CREATED: 'finance.fx.conversion_created',
+  FX_CONVERSION_POSTED: 'finance.fx.conversion_posted',
+  FX_CONVERSION_CANCELLED: 'finance.fx.conversion_cancelled',
+  FX_CONVERSION_REVERSED: 'finance.fx.conversion_reversed',
+} as const;
+
+export type DomainEventType = (typeof DOMAIN_EVENTS)[keyof typeof DOMAIN_EVENTS];
+
+export const DOMAIN_EVENT_VERSION = 1;

@@ -1,0 +1,46 @@
+{
+  "name": "hector",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hector — Business Operating System",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@hector/web --filter=@hector/api",
+    "dev:web": "pnpm --filter @hector/web dev",
+    "dev:api": "pnpm --filter @hector/api dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test --filter=@hector/api --filter=@hector/web",
+    "test:e2e": "pnpm --filter @hector/api test:e2e",
+    "test:security": "pnpm --filter @hector/api test:security",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @hector/database db:generate",
+    "db:migrate": "pnpm --filter @hector/database db:migrate",
+    "db:migrate:deploy": "pnpm --filter @hector/database db:migrate:deploy",
+    "db:seed": "pnpm --filter @hector/database db:seed",
+    "db:studio": "pnpm --filter @hector/database db:studio",
+    "db:check:catalog": "pnpm --filter @hector/database exec tsx scripts/catalog-integrity-check.ts",
+    "db:check:purchasing": "pnpm --filter @hector/database exec tsx scripts/purchasing-integrity-check.ts",
+    "db:check:warehouse": "pnpm --filter @hector/database exec tsx scripts/warehouse-integrity-check.ts",
+    "db:check:inventory": "pnpm --filter @hector/database exec tsx scripts/inventory-integrity-check.ts",
+    "db:check:valuation": "pnpm --filter @hector/database exec tsx scripts/valuation-integrity-check.ts",
+    "db:check:finance": "pnpm --filter @hector/database exec tsx scripts/finance-integrity-check.ts",
+    "db:rebuild:inventory-balances": "pnpm --filter @hector/database exec tsx scripts/rebuild-inventory-balances.ts",
+    "inventory:reconcile": "pnpm --filter @hector/database exec tsx scripts/inventory-reconcile.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.44.0"
+  }
+}
