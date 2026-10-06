@@ -167,22 +167,28 @@ Docs:
 - `docs/warehouse-sales-contract.md`
 - `docs/phase-3.18-final-qa-report.md` — Final QA report
 
-### Finance (Phase 4.6 — Payments + Receipts + Transfers)
+### Finance (Phase 4.10 — API + UI Coherence)
 
-**Status: Phase 4.6 COMPLETE — READY FOR 4.7**
+**Status: Phase 4.10 COMPLETE — READY FOR 4.11** (Finance dashboard; do not invent Profit here)
 
+- `docs/finance-api-ui.md` — FIN-UI-001…024 + navigation/API map
+- `docs/phase-4.10-finance-api-ui-report.md` — Phase 4.10 report (45 sections)
+- `docs/finance-liability-settlement.md` — FIN-SET-001…014 (Phase 4.9)
+- `docs/phase-4.9-liability-settlement-report.md` — Phase 4.9 report
+- `docs/finance-ledger-journal.md` — FIN-JRN-001…035 + PO/GRN/AP/Inventory timing
+- `docs/phase-4.8-financial-ledger-journal-report.md` — Phase 4.8 report (49 sections)
 - `docs/finance-money-movements.md` — FIN-MOV-001…028 + anti-double-count matrix + APIs
 - `docs/phase-4.6-payments-receipts-transfers-report.md` — Phase 4.6 report (§156 STATUS)
-- `docs/finance-fx-currency.md` — FIN-FX-001…025 + APIs + settlement contract note for 4.9
+- `docs/finance-fx-currency.md` — FIN-FX-001…025 + APIs
 - `docs/phase-4.5-fx-currency-report.md` — Phase 4.5 report (46 sections)
-- `docs/finance-supplier-payables.md` — FIN-AP-001…025; cash Payment in 4.6; settle+allocate in **4.9**
+- `docs/finance-supplier-payables.md` — FIN-AP-001…025
 - `docs/phase-4.4-supplier-payables-report.md` — Phase 4.4 report (44 sections)
 - `docs/finance-funding-loans.md` — FIN-FUND-001…008 + FIN-LOAN-001…014 + APIs
 - `docs/phase-4.3-capital-loans-report.md` — Phase 4.3 report (43 sections)
 - `docs/finance-accounts.md` — FIN-ACC-001…020 + APIs (Phase 4.2)
 - `docs/phase-4.2-accounts-report.md` — Phase 4.2 report
 - `docs/finance-architecture.md` — Finance Core architecture
-- `docs/finance-invariants.md` — FIN-CUR / FIN-FX / FIN-FUND / FIN-LOAN / FIN-AP / FIN-MOV / FIN-CASH / FIN-JRN / FIN-TEN
+- `docs/finance-invariants.md` — FIN-CUR / FIN-FX / FIN-FUND / FIN-LOAN / FIN-AP / FIN-MOV / FIN-CASH / FIN-JRN / FIN-UI / FIN-TEN
 - `docs/finance-domain-boundaries.md` — ownership matrix + recognition matrix
 - `docs/finance-currency-and-money.md` — Money / Currency / FX / rounding
 - `docs/finance-purchasing-contract.md` — Purchasing → Finance (recognition live)
@@ -190,7 +196,8 @@ Docs:
 - `docs/phase-4.1-finance-architecture-report.md` — Phase 4.1 report
 
 ```bash
-pnpm db:check:finance     # accounts + capital/loans + payables + FX + payments/receipts (0 violations expected)
+pnpm db:check:finance     # Finance integrity (Phase 4.12; 0 violations expected)
+pnpm finance:integrity    # alias for db:check:finance
 pnpm db:check:warehouse   # warehouse + inventory workflow integrity (0 violations expected)
 pnpm db:check:inventory   # StockBalance = SUM(Ledger) per position
 pnpm db:check:valuation   # reservations + FIFO + valuation

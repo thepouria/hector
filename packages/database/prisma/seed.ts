@@ -65,6 +65,12 @@ import {
   PaymentPurposeType,
   ReceiptStatus,
   ReceiptSourceType,
+  ExpenseCategoryStatus,
+  ExpenseStatus,
+  ExpensePaymentStatus,
+  ExpenseSourceType,
+  JournalEntryStatus,
+  JournalLineDirection,
 } from '../src/generated/prisma/enums';
 import {
   OWNER_ROLE_KEY,
@@ -306,6 +312,12 @@ async function main(): Promise<void> {
     await seedFinanceCapitalLoansForPishteh(prisma, company.id);
     await seedFinanceFxRatesForPishteh(prisma, company.id);
     await seedFinancePaymentsReceiptsForPishteh(prisma, company.id);
+    await seedExpenseCategoriesForCompany(prisma, company.id);
+    await seedExpenseCategoriesForCompany(prisma, secondary.id);
+    await seedFinanceExpensesForPishteh(prisma, company.id);
+    await seedFinanceLedgerCoaForCompany(prisma, company.id);
+    await seedFinanceLedgerCoaForCompany(prisma, secondary.id);
+    await seedFinancePaymentReceiptClearingJournalsForPishteh(prisma, company.id);
 
     console.log('Hector database seed completed.');
     console.log(`Company: ${company.name} (${company.slug})`);
@@ -3919,6 +3931,393 @@ async function seedFinancePaymentsReceiptsForPishteh(
     create: { companyId, nextValue: recNext },
     update: { nextValue: recNext },
   });
+}
+
+const DEFAULT_EXPENSE_CATEGORY_SEED = [
+  { code: 'RENT', name: 'Rent' },
+  { code: 'SALARY', name: 'Salary' },
+  { code: 'TRANSPORT', name: 'Transport' },
+  { code: 'COURIER', name: 'Courier' },
+  { code: 'OFFICE', name: 'Office' },
+  { code: 'UTILITIES', name: 'Utilities' },
+  { code: 'SOFTWARE', name: 'Software' },
+  { code: 'BANK_FEE', name: 'Bank fee' },
+  { code: 'FREIGHT', name: 'Freight' },
+  { code: 'CUSTOMS', name: 'Customs' },
+  { code: 'PACKAGING', name: 'Packaging' },
+  { code: 'PURCHASE_FEE', name: 'Purchase fee' },
+  { code: 'OTHER', name: 'Other' },
+] as const;
+
+/** Phase 4.7 — Idempotent default expense categories per company. */
+async function seedExpenseCategoriesForCompany(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const owner = await prisma.user.findUnique({ where: { email: 'pouria@hector.local' } });
+  for (const cat of DEFAULT_EXPENSE_CATEGORY_SEED) {
+    await prisma.expenseCategory.upsert({
+      where: { companyId_code: { companyId, code: cat.code } },
+      create: {
+        companyId,
+        code: cat.code,
+        name: cat.name,
+        status: ExpenseCategoryStatus.ACTIVE,
+        isSystem: true,
+        createdById: owner?.id ?? null,
+      },
+      update: {},
+    });
+  }
+}
+
+/**
+ * Phase 4.7 — Sample unpaid approved rent Expense (no AccountMovement).
+ * Numbers use SEED-EXP- so they never collide with API sequences (EXP-).
+ */
+async function seedFinanceExpensesForPishteh(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'pouria@hector.local' } });
+  const rent = await prisma.expenseCategory.findUniqueOrThrow({
+    where: { companyId_code: { companyId, code: 'RENT' } },
+  });
+
+  const requestId = 'aaaaaaaa-0004-4700-8000-000000000001';
+  const existing = await prisma.expense.findFirst({
+    where: { companyId, requestId },
+  });
+  if (!existing) {
+    await prisma.expense.create({
+      data: {
+        companyId,
+        number: 'SEED-EXP-000001',
+        categoryId: rent.id,
+        amount: new Prisma.Decimal('100000000'),
+        currency: CurrencyCode.IRR,
+        expenseDate: new Date('2026-04-01T12:00:00.000Z'),
+        description: 'SEED: Office rent April (unpaid approved)',
+        status: ExpenseStatus.APPROVED,
+        paymentStatus: ExpensePaymentStatus.UNPAID,
+        sourceType: ExpenseSourceType.MANUAL,
+        requestId,
+        createdById: owner.id,
+        approvedAt: new Date('2026-04-01T12:00:00.000Z'),
+        approvedById: owner.id,
+      },
+    });
+  }
+
+  const maxExp = await prisma.expense.findMany({
+    where: { companyId, number: { startsWith: 'EXP-' } },
+    select: { number: true },
+  });
+  let expNext = 1;
+  for (const row of maxExp) {
+    const n = Number(row.number.replace(/^EXP-/, ''));
+    if (Number.isFinite(n) && n >= expNext) expNext = n + 1;
+  }
+  await prisma.expenseSequence.upsert({
+    where: { companyId },
+    create: { companyId, nextValue: expNext },
+    update: { nextValue: expNext },
+  });
+}
+
+/**
+ * Phase 4.8 — Minimal Chart of Accounts + map FinancialAccounts / ExpenseCategories.
+ * Idempotent. Prefer going-forward journals; no deterministic backfill of historical posts.
+ */
+async function seedFinanceLedgerCoaForCompany(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const defs: Array<{
+    systemKey: string;
+    code: string;
+    name: string;
+    type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+    parentSystemKey?: string;
+  }> = [
+    { systemKey: 'CASH_AND_BANK', code: '1000', name: 'Cash and Bank', type: 'ASSET' },
+    { systemKey: 'INVENTORY', code: '1200', name: 'Inventory Asset', type: 'ASSET' },
+    { systemKey: 'SUPPLIER_PAYABLE', code: '2100', name: 'Supplier Payable', type: 'LIABILITY' },
+    { systemKey: 'LOAN_PAYABLE', code: '2200', name: 'Loan Payable', type: 'LIABILITY' },
+    { systemKey: 'EXPENSE_PAYABLE', code: '2300', name: 'Expense Payable', type: 'LIABILITY' },
+    { systemKey: 'FINANCE_CLEARING', code: '2400', name: 'Finance Clearing', type: 'LIABILITY' },
+    {
+      systemKey: 'UNCLASSIFIED_PAYMENTS',
+      code: '2410',
+      name: 'Unclassified Payments',
+      type: 'LIABILITY',
+      parentSystemKey: 'FINANCE_CLEARING',
+    },
+    {
+      systemKey: 'UNCLASSIFIED_RECEIPTS',
+      code: '2420',
+      name: 'Unclassified Receipts',
+      type: 'LIABILITY',
+      parentSystemKey: 'FINANCE_CLEARING',
+    },
+    { systemKey: 'CAPITAL_EQUITY', code: '3000', name: 'Capital Equity', type: 'EQUITY' },
+    { systemKey: 'REVENUE_FOUNDATION', code: '4000', name: 'Revenue Foundation', type: 'REVENUE' },
+    { systemKey: 'OPERATING_EXPENSE', code: '5000', name: 'Operating Expense', type: 'EXPENSE' },
+    { systemKey: 'FX_GAIN', code: '7100', name: 'FX Gain', type: 'REVENUE' },
+    { systemKey: 'FX_LOSS', code: '7200', name: 'FX Loss', type: 'EXPENSE' },
+  ];
+
+  const byKey = new Map<string, string>();
+  const ordered = [
+    ...defs.filter((d) => !d.parentSystemKey),
+    ...defs.filter((d) => d.parentSystemKey),
+  ];
+  for (const def of ordered) {
+    const existing = await prisma.ledgerAccount.findFirst({
+      where: { companyId, systemKey: def.systemKey },
+    });
+    if (existing) {
+      byKey.set(def.systemKey, existing.id);
+      continue;
+    }
+    const parentId = def.parentSystemKey ? byKey.get(def.parentSystemKey) ?? null : null;
+    const created = await prisma.ledgerAccount.create({
+      data: {
+        companyId,
+        code: def.code,
+        name: def.name,
+        type: def.type as never,
+        systemKey: def.systemKey,
+        kind: 'SYSTEM' as never,
+        status: 'ACTIVE' as never,
+        parentId,
+        description: `SEED: Phase 4.8 system CoA ${def.systemKey}`,
+      },
+    });
+    byKey.set(def.systemKey, created.id);
+  }
+
+  const cashParentId = byKey.get('CASH_AND_BANK');
+  if (cashParentId) {
+    const accounts = await prisma.financialAccount.findMany({
+      where: { companyId, ledgerAccountId: null },
+    });
+    for (const account of accounts) {
+      const code = `CASH-${account.code}`.slice(0, 64);
+      let child = await prisma.ledgerAccount.findFirst({ where: { companyId, code } });
+      if (!child) {
+        child = await prisma.ledgerAccount.create({
+          data: {
+            companyId,
+            code,
+            name: account.name,
+            type: 'ASSET' as never,
+            kind: 'USER_DEFINED' as never,
+            status: 'ACTIVE' as never,
+            parentId: cashParentId,
+            description: `SEED: mapped from FinancialAccount ${account.code}`,
+          },
+        });
+      }
+      await prisma.financialAccount.update({
+        where: { id: account.id },
+        data: { ledgerAccountId: child.id },
+      });
+    }
+  }
+
+  const expenseParentId = byKey.get('OPERATING_EXPENSE');
+  if (expenseParentId) {
+    const categories = await prisma.expenseCategory.findMany({
+      where: { companyId, ledgerAccountId: null },
+    });
+    for (const cat of categories) {
+      const code = `EXP-${cat.code}`.slice(0, 64);
+      let child = await prisma.ledgerAccount.findFirst({ where: { companyId, code } });
+      if (!child) {
+        child = await prisma.ledgerAccount.create({
+          data: {
+            companyId,
+            code,
+            name: cat.name,
+            type: 'EXPENSE' as never,
+            kind: 'USER_DEFINED' as never,
+            status: 'ACTIVE' as never,
+            parentId: expenseParentId,
+            description: `SEED: mapped from ExpenseCategory ${cat.code}`,
+          },
+        });
+      }
+      await prisma.expenseCategory.update({
+        where: { id: cat.id },
+        data: { ledgerAccountId: child.id },
+      });
+    }
+  }
+
+  await prisma.journalEntrySequence.upsert({
+    where: { companyId },
+    create: { companyId, nextValue: 1 },
+    update: {},
+  });
+}
+
+/**
+ * Phase 4.12 — Idempotent clearing journals for seed POSTED payments/receipts.
+ * Architecture always posts PAYMENT_CLEARING / RECEIPT_CLEARING via API; seed historically
+ * created cash movements only. Backfill so finance integrity stays green.
+ */
+async function seedFinancePaymentReceiptClearingJournalsForPishteh(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'pouria@hector.local' } });
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: { baseCurrency: true },
+  });
+  const unclassifiedPayments = await prisma.ledgerAccount.findFirstOrThrow({
+    where: { companyId, systemKey: 'UNCLASSIFIED_PAYMENTS' },
+  });
+  const unclassifiedReceipts = await prisma.ledgerAccount.findFirstOrThrow({
+    where: { companyId, systemKey: 'UNCLASSIFIED_RECEIPTS' },
+  });
+
+  const payments = await prisma.payment.findMany({
+    where: { companyId, status: PaymentStatus.POSTED, reversalOfId: null },
+    include: { account: { select: { id: true, ledgerAccountId: true, currency: true } } },
+  });
+  for (const payment of payments) {
+    const existing = await prisma.journalEntry.findFirst({
+      where: {
+        companyId,
+        sourceType: 'PAYMENT',
+        sourceId: payment.id,
+        effectType: 'PAYMENT_CLEARING',
+      },
+    });
+    if (existing) continue;
+    const bankLedgerId = payment.account.ledgerAccountId;
+    if (!bankLedgerId) {
+      throw new Error(`SEED: payment ${payment.number} account missing ledgerAccountId`);
+    }
+    const amount = payment.amount;
+    const number = `SEED-JE-PAY-${payment.number}`.slice(0, 64);
+    const entry = await prisma.journalEntry.create({
+      data: {
+        companyId,
+        number,
+        status: JournalEntryStatus.POSTED,
+        effectiveAt: payment.effectiveAt,
+        description: `SEED: payment clearing ${payment.number}`,
+        sourceType: 'PAYMENT',
+        sourceId: payment.id,
+        effectType: 'PAYMENT_CLEARING',
+        baseCurrency: company.baseCurrency,
+        totalDebitBase: amount,
+        totalCreditBase: amount,
+        createdById: owner.id,
+        postedAt: payment.postedAt ?? payment.effectiveAt,
+        postedById: owner.id,
+      },
+    });
+    await prisma.journalLine.createMany({
+      data: [
+        {
+          companyId,
+          journalEntryId: entry.id,
+          ledgerAccountId: unclassifiedPayments.id,
+          direction: JournalLineDirection.DEBIT,
+          originalAmount: amount,
+          originalCurrency: payment.currency,
+          baseAmount: amount,
+          baseCurrency: company.baseCurrency,
+          description: `SEED DR unclassified ${payment.number}`,
+          lineOrder: 1,
+        },
+        {
+          companyId,
+          journalEntryId: entry.id,
+          ledgerAccountId: bankLedgerId,
+          direction: JournalLineDirection.CREDIT,
+          originalAmount: amount,
+          originalCurrency: payment.currency,
+          baseAmount: amount,
+          baseCurrency: company.baseCurrency,
+          description: `SEED CR bank ${payment.number}`,
+          lineOrder: 2,
+        },
+      ],
+    });
+  }
+
+  const receipts = await prisma.receipt.findMany({
+    where: { companyId, status: ReceiptStatus.POSTED, reversalOfId: null },
+    include: { account: { select: { id: true, ledgerAccountId: true, currency: true } } },
+  });
+  for (const receipt of receipts) {
+    const existing = await prisma.journalEntry.findFirst({
+      where: {
+        companyId,
+        sourceType: 'RECEIPT',
+        sourceId: receipt.id,
+        effectType: 'RECEIPT_CLEARING',
+      },
+    });
+    if (existing) continue;
+    const bankLedgerId = receipt.account.ledgerAccountId;
+    if (!bankLedgerId) {
+      throw new Error(`SEED: receipt ${receipt.number} account missing ledgerAccountId`);
+    }
+    const amount = receipt.amount;
+    const number = `SEED-JE-REC-${receipt.number}`.slice(0, 64);
+    const entry = await prisma.journalEntry.create({
+      data: {
+        companyId,
+        number,
+        status: JournalEntryStatus.POSTED,
+        effectiveAt: receipt.effectiveAt,
+        description: `SEED: receipt clearing ${receipt.number}`,
+        sourceType: 'RECEIPT',
+        sourceId: receipt.id,
+        effectType: 'RECEIPT_CLEARING',
+        baseCurrency: company.baseCurrency,
+        totalDebitBase: amount,
+        totalCreditBase: amount,
+        createdById: owner.id,
+        postedAt: receipt.postedAt ?? receipt.effectiveAt,
+        postedById: owner.id,
+      },
+    });
+    await prisma.journalLine.createMany({
+      data: [
+        {
+          companyId,
+          journalEntryId: entry.id,
+          ledgerAccountId: bankLedgerId,
+          direction: JournalLineDirection.DEBIT,
+          originalAmount: amount,
+          originalCurrency: receipt.currency,
+          baseAmount: amount,
+          baseCurrency: company.baseCurrency,
+          description: `SEED DR bank ${receipt.number}`,
+          lineOrder: 1,
+        },
+        {
+          companyId,
+          journalEntryId: entry.id,
+          ledgerAccountId: unclassifiedReceipts.id,
+          direction: JournalLineDirection.CREDIT,
+          originalAmount: amount,
+          originalCurrency: receipt.currency,
+          baseAmount: amount,
+          baseCurrency: company.baseCurrency,
+          description: `SEED CR unclassified ${receipt.number}`,
+          lineOrder: 2,
+        },
+      ],
+    });
+  }
 }
 
 /**

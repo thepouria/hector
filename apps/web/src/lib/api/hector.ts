@@ -4444,6 +4444,64 @@ export async function cancelPayment(
   return result.data;
 }
 
+export type LiabilitySettlementAllocation = {
+  id: string;
+  payableId: string;
+  payableNumber: string | null;
+  paymentId: string | null;
+  paymentNumber: string | null;
+  amount: string;
+  currency: string;
+  paymentCurrency: string;
+  paymentAmountApplied: string;
+  liabilityAmountSettled: string;
+  fxDifferenceBase: string | null;
+  status: string;
+  effectiveAt: string;
+};
+
+export async function fetchPaymentSettlements(
+  companyId: string,
+  paymentId: string,
+): Promise<LiabilitySettlementAllocation[]> {
+  const result = await apiRequest<{ data: LiabilitySettlementAllocation[] }>(
+    `/api/v1/finance/payments/${paymentId}/settlements`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function settlePaymentLiabilities(
+  companyId: string,
+  paymentId: string,
+  body: {
+    lines: Array<{
+      payableId: string;
+      liabilityAmount: string;
+      paymentAmount?: string;
+      settlementFxRateId?: string;
+    }>;
+    requestId?: string;
+  },
+): Promise<{
+  settlementGroupId: string;
+  paymentId: string;
+  allocations: LiabilitySettlementAllocation[];
+}> {
+  const result = await apiRequest<{
+    data: {
+      settlementGroupId: string;
+      paymentId: string;
+      allocations: LiabilitySettlementAllocation[];
+    };
+  }>(`/api/v1/finance/payments/${paymentId}/settlements`, {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
 export async function fetchReceipts(
   companyId: string,
   params: { page?: number; pageSize?: number; q?: string; status?: string } = {},
@@ -4524,3 +4582,500 @@ export async function cancelReceipt(
   return result.data;
 }
 
+
+export type FinanceExpense = {
+  id: string;
+  number: string;
+  categoryId: string;
+  category: { id: string; code: string; name: string; status: string };
+  amount: string;
+  currency: string;
+  expenseDate: string;
+  description: string;
+  status: string;
+  paymentStatus: string;
+  paidAmount: string;
+  outstandingAmount: string;
+  reference: string | null;
+  notes: string | null;
+  allocations: Array<{
+    id: string;
+    paymentId: string;
+    amount: string;
+    currency: string;
+    createdAt: string;
+  }>;
+};
+
+export type FinanceExpenseCategory = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  description: string | null;
+  isSystem: boolean;
+};
+
+export async function fetchExpenses(
+  companyId: string,
+  params: {
+    page?: number;
+    pageSize?: number;
+    q?: string;
+    status?: string;
+    paymentStatus?: string;
+  } = {},
+): Promise<{ data: FinanceExpense[]; meta: PaginationMeta }> {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  if (params.paymentStatus) search.set('paymentStatus', params.paymentStatus);
+  const qs = search.toString();
+  return apiRequest(`/api/v1/finance/expenses${qs ? `?${qs}` : ''}`, { companyId });
+}
+
+export async function fetchExpense(
+  companyId: string,
+  expenseId: string,
+): Promise<FinanceExpense> {
+  const result = await apiRequest<{ data: FinanceExpense }>(
+    `/api/v1/finance/expenses/${expenseId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createExpense(
+  companyId: string,
+  body: {
+    categoryId: string;
+    amount: string;
+    currency: string;
+    expenseDate: string;
+    description: string;
+    approveImmediately?: boolean;
+    requestId?: string;
+    reference?: string;
+    notes?: string;
+  },
+): Promise<FinanceExpense> {
+  const result = await apiRequest<{ data: FinanceExpense }>('/api/v1/finance/expenses', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function approveExpense(
+  companyId: string,
+  expenseId: string,
+): Promise<FinanceExpense> {
+  const result = await apiRequest<{ data: FinanceExpense }>(
+    `/api/v1/finance/expenses/${expenseId}/approve`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function payExpenseNow(
+  companyId: string,
+  expenseId: string,
+  body: { accountId: string; amount?: string; requestId?: string },
+): Promise<FinanceExpense> {
+  const result = await apiRequest<{ data: FinanceExpense }>(
+    `/api/v1/finance/expenses/${expenseId}/pay-now`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function fetchExpenseCategories(
+  companyId: string,
+): Promise<{ data: FinanceExpenseCategory[]; meta: PaginationMeta }> {
+  return apiRequest('/api/v1/finance/expense-categories?pageSize=100', { companyId });
+}
+
+export async function setPurchaseCostTreatment(
+  companyId: string,
+  purchaseOrderId: string,
+  costId: string,
+  body: { treatment: string; expenseCategoryId?: string },
+): Promise<unknown> {
+  const result = await apiRequest<{ data: unknown }>(
+    `/api/v1/purchasing/purchase-orders/${purchaseOrderId}/costs/${costId}/set-treatment`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function previewPurchaseCostAllocation(
+  companyId: string,
+  purchaseOrderId: string,
+  costId: string,
+  body: { method: string; lines?: Array<{ targetType: string; targetId: string; amount: string }> },
+): Promise<{ data: Array<{ targetType: string; targetId: string; allocatedAmount: string; currency: string }>; method: string }> {
+  return apiRequest(
+    `/api/v1/purchasing/purchase-orders/${purchaseOrderId}/costs/${costId}/allocation-preview`,
+    { method: 'POST', companyId, body },
+  );
+}
+
+export type FinanceLedgerAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  systemKey: string | null;
+  kind: string;
+  status: string;
+  parentId: string | null;
+  description: string | null;
+};
+
+export type FinanceJournalLine = {
+  id: string;
+  ledgerAccountId: string;
+  ledgerAccountCode: string;
+  ledgerAccountName: string;
+  direction: string;
+  originalAmount: string;
+  originalCurrency: string;
+  baseAmount: string;
+  baseCurrency: string;
+  fxRate: string | null;
+  description: string | null;
+};
+
+export type FinanceJournal = {
+  id: string;
+  number: string;
+  status: string;
+  effectiveAt: string;
+  description: string;
+  reference: string | null;
+  sourceType: string;
+  effectType: string;
+  baseCurrency: string;
+  totalDebitBase: string;
+  totalCreditBase: string;
+  reversalOfId: string | null;
+  lines: FinanceJournalLine[];
+};
+
+export type FinanceTrialBalanceRow = {
+  ledgerAccountId: string;
+  code: string;
+  name: string;
+  type: string;
+  systemKey: string | null;
+  debitBase: string;
+  creditBase: string;
+  netBase: string;
+};
+
+export async function fetchLedgerAccounts(
+  companyId: string,
+  params: { page?: number; pageSize?: number; q?: string } = {},
+): Promise<{ data: FinanceLedgerAccount[]; meta: PaginationMeta }> {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize ?? 100));
+  if (params.q) search.set('q', params.q);
+  const qs = search.toString();
+  return apiRequest(`/api/v1/finance/ledger-accounts${qs ? `?${qs}` : ''}`, { companyId });
+}
+
+export async function fetchJournals(
+  companyId: string,
+  params: { page?: number; pageSize?: number; q?: string; status?: string } = {},
+): Promise<{ data: FinanceJournal[]; meta: PaginationMeta }> {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize ?? 50));
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  const qs = search.toString();
+  return apiRequest(`/api/v1/finance/journals${qs ? `?${qs}` : ''}`, { companyId });
+}
+
+export async function fetchJournal(
+  companyId: string,
+  journalId: string,
+): Promise<FinanceJournal> {
+  const result = await apiRequest<{ data: FinanceJournal }>(
+    `/api/v1/finance/journals/${journalId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function fetchTrialBalance(
+  companyId: string,
+): Promise<{ data: FinanceTrialBalanceRow[]; baseCurrency: string }> {
+  return apiRequest('/api/v1/finance/trial-balance', { companyId });
+}
+
+export type FinanceGeneralLedgerLine = {
+  id: string;
+  journalEntryId: string;
+  journalNumber: string;
+  effectiveAt: string;
+  description: string;
+  ledgerAccountId: string;
+  ledgerAccountCode: string;
+  ledgerAccountName: string;
+  direction: 'DEBIT' | 'CREDIT';
+  originalAmount: string;
+  originalCurrency: string;
+  baseAmount: string;
+  baseCurrency: string;
+  fxRate: string | null;
+  sourceType: string;
+  effectType: string;
+  runningBalanceBase: string;
+};
+
+export type FinanceGeneralLedger = {
+  ledgerAccount: { id: string; code: string; name: string; type: string };
+  baseCurrency: string;
+  openingBalanceBase: string;
+  closingBalanceBase: string;
+  data: FinanceGeneralLedgerLine[];
+  meta: PaginationMeta;
+};
+
+export async function fetchGeneralLedger(
+  companyId: string,
+  params: {
+    ledgerAccountId: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<FinanceGeneralLedger> {
+  const search = new URLSearchParams();
+  search.set('ledgerAccountId', params.ledgerAccountId);
+  if (params.dateFrom) search.set('dateFrom', params.dateFrom);
+  if (params.dateTo) search.set('dateTo', params.dateTo);
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize ?? 50));
+  return apiRequest(`/api/v1/finance/general-ledger?${search.toString()}`, {
+    companyId,
+  });
+}
+
+export type SettlementPreviewLine = {
+  payableId: string;
+  payableNumber: string;
+  liabilityCurrency: string;
+  liabilityAmount: string;
+  paymentCurrency: string;
+  paymentAmount: string;
+  outstandingBefore: string;
+  outstandingAfter: string;
+  baseCarryingAmount: string;
+  basePaymentAmount: string;
+  fxDifferenceBase: string;
+  settlementRate: string | null;
+};
+
+export type SettlementPreview = {
+  paymentId: string;
+  paymentNumber: string;
+  paymentAmount: string;
+  paymentCurrency: string;
+  paymentRemainingBefore: string;
+  paymentRemainingAfter: string;
+  lines: SettlementPreviewLine[];
+};
+
+export async function previewSettlement(
+  companyId: string,
+  body: {
+    paymentId: string;
+    lines: Array<{
+      payableId: string;
+      liabilityAmount: string;
+      paymentAmount?: string;
+      settlementFxRateId?: string;
+      settlementRate?: string;
+      settlementRateBaseCurrency?: string;
+      settlementRateQuoteCurrency?: string;
+    }>;
+    requestId?: string;
+  },
+): Promise<SettlementPreview> {
+  const result = await apiRequest<{ data: SettlementPreview }>(
+    '/api/v1/finance/settlements/preview',
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function settlePayableFromPayment(
+  companyId: string,
+  payableId: string,
+  body: {
+    paymentId: string;
+    liabilityAmount: string;
+    paymentAmount?: string;
+    settlementFxRateId?: string;
+    settlementRate?: string;
+    settlementRateBaseCurrency?: string;
+    settlementRateQuoteCurrency?: string;
+    requestId?: string;
+  },
+): Promise<{
+  settlementGroupId: string;
+  paymentId: string;
+  allocations: LiabilitySettlementAllocation[];
+}> {
+  const result = await apiRequest<{
+    data: {
+      settlementGroupId: string;
+      paymentId: string;
+      allocations: LiabilitySettlementAllocation[];
+    };
+  }>(`/api/v1/finance/payables/${payableId}/settle`, {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function reverseSettlementAllocation(
+  companyId: string,
+  allocationId: string,
+): Promise<LiabilitySettlementAllocation> {
+  const result = await apiRequest<{ data: LiabilitySettlementAllocation }>(
+    `/api/v1/finance/settlements/${allocationId}/reverse`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+// --- Finance Dashboard + Audit (Phase 4.11) ---
+
+export type FinanceDashboardMoneyRow = { currency: string; amount: string };
+
+export type FinanceDashboard = {
+  asOf: string;
+  period: {
+    preset: string;
+    from: string;
+    to: string;
+    dayCount: number;
+    granularity: 'day' | 'week';
+  };
+  snapshot: {
+    accountsByCurrency?: Array<{
+      currency: string;
+      type: string;
+      balance: string;
+      accountCount: number;
+    }>;
+    supplierPayablesByCurrency?: FinanceDashboardMoneyRow[];
+    loansByCurrency?: FinanceDashboardMoneyRow[];
+    expenseOutstandingByCurrency?: FinanceDashboardMoneyRow[];
+    dueSoon?: Array<{
+      type: 'SUPPLIER_PAYABLE' | 'LOAN' | 'EXPENSE';
+      counterparty: string;
+      reference: string | null;
+      number: string;
+      dueDate: string;
+      outstanding: string;
+      currency: string;
+      id: string;
+    }>;
+    overdue?: Array<{
+      type: 'SUPPLIER_PAYABLE' | 'LOAN' | 'EXPENSE';
+      counterparty: string;
+      reference: string | null;
+      number: string;
+      dueDate: string;
+      outstanding: string;
+      currency: string;
+      id: string;
+    }>;
+    topSuppliers?: Array<{
+      currency: string;
+      supplierId: string;
+      supplierName: string;
+      outstanding: string;
+    }>;
+  };
+  periodMetrics: {
+    moneyInByCurrency?: FinanceDashboardMoneyRow[];
+    moneyOutByCurrency?: FinanceDashboardMoneyRow[];
+    expensesRecordedByCurrency?: FinanceDashboardMoneyRow[];
+    expensesByCategory?: Array<{
+      categoryId: string;
+      categoryName: string;
+      currency: string;
+      amount: string;
+    }>;
+    cashMovementTrend?: Array<{ bucket: string; moneyIn: string; moneyOut: string }>;
+  };
+  recentActivity?: Array<{
+    occurredAt: string;
+    actorName: string | null;
+    action: string;
+    entityType: string;
+    entityId: string | null;
+    reference?: string;
+    amount?: string;
+    currency?: string;
+  }>;
+  chartCurrency: string;
+  semantics: {
+    moneyInIsNotRevenue: true;
+    moneyOutIsNotExpense: true;
+    cashMovementIsNotProfit: true;
+    internalTransfersExcludedFromMoneyInOut: true;
+  };
+};
+
+export async function fetchFinanceDashboard(
+  companyId: string,
+  query: Record<string, string | undefined> = {},
+): Promise<FinanceDashboard> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const qs = params.toString();
+  const result = await apiRequest<{ data: FinanceDashboard }>(
+    `/api/v1/finance/dashboard${qs ? `?${qs}` : ''}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function fetchFinanceAuditLogs(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<{ data: AuditListItem[]; meta: PaginationMeta }> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+  const qs = params.toString();
+  return apiRequest(`/api/v1/finance/audit${qs ? `?${qs}` : ''}`, { companyId });
+}
+
+export async function fetchFinanceAuditLog(
+  companyId: string,
+  auditLogId: string,
+): Promise<AuditDetail> {
+  const result = await apiRequest<{ data: AuditDetail }>(`/api/v1/finance/audit/${auditLogId}`, {
+    companyId,
+  });
+  return result.data;
+}

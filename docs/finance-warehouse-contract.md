@@ -39,13 +39,19 @@ Putaway / Transfer / Issue documents
 | Known inventory valuation | Warehouse |
 | Purchase commercial price / FX reference | Purchasing |
 | Financial payable / payment / journal | Finance |
-| Capitalize cost into inventory vs expense | Future Finance policy + Warehouse cost sync (not Profit) |
+| Capitalize cost into inventory vs expense | Finance policy + Purchasing treatment; **Warehouse helper** updates layer unit costs only (Phase 4.7) |
 | COGS / Gross Profit | Profit Engine (Phase 7) |
 
 ```text
 FIFO consumption ≠ automatically COGS
 Inventory purchase ≠ automatically Expense
+Finance/Purchasing must not mutate layer quantity
+Capitalizable PurchaseOrderCost → inventory-cost-capitalization helper (unit cost + InventoryCostComponent)
 ```
+
+Phase 4.7 exception to “never mutate InventoryCostLayer”: **valuation fields only**
+(`baseCurrencyUnitCost`, `originalUnitAmount`, `hasUnallocatedPurchaseCosts`, `valuationStatus`)
+via `applyCapitalizableCostToLayersInTx` — never quantity / movement / balance.
 
 Issues for SAMPLE / TESTER / DAMAGE / COMPANY_USE / SUPPLIER_RETURN are not sales COGS.
 

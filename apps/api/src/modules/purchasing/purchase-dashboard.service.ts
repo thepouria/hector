@@ -723,10 +723,17 @@ export class PurchaseDashboardService {
         entityId: row.entityId,
         createdAt: row.createdAt.toISOString(),
         actor: row.actor
-          ? {
-              id: row.actor.id,
-              displayName: `${row.actor.firstName} ${row.actor.lastName}`.trim(),
-            }
+          ? (() => {
+              const actor = row.actor as {
+                id: string;
+                firstName: string;
+                lastName: string;
+              };
+              return {
+                id: actor.id,
+                displayName: `${actor.firstName} ${actor.lastName}`.trim(),
+              };
+            })()
           : null,
       })),
     };

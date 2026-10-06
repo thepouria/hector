@@ -43,8 +43,12 @@ export const ROUTES = {
   purchasingReturnNew: '/app/purchasing/returns/new',
   sales: '/app/sales',
   finance: '/app/finance',
+  financeAudit: '/app/finance/audit',
   financeAccounts: '/app/finance/accounts',
   financeAccountNew: '/app/finance/accounts/new',
+  financeMoneyMovements: '/app/finance/money-movements',
+  financeLiabilities: '/app/finance/liabilities',
+  financeAccounting: '/app/finance/accounting',
   financeAccountTransfers: '/app/finance/account-transfers',
   financeAccountTransferNew: '/app/finance/account-transfers/new',
   financeCapital: '/app/finance/capital',
@@ -52,10 +56,18 @@ export const ROUTES = {
   financeLoans: '/app/finance/loans',
   financeLoanNew: '/app/finance/loans/new',
   financePayables: '/app/finance/payables',
+  financeSettlements: '/app/finance/settlements',
   financePayments: '/app/finance/payments',
   financePaymentNew: '/app/finance/payments/new',
   financeReceipts: '/app/finance/receipts',
   financeReceiptNew: '/app/finance/receipts/new',
+  financeExpenses: '/app/finance/expenses',
+  financeExpenseNew: '/app/finance/expenses/new',
+  financeExpenseCategories: '/app/finance/expense-categories',
+  financeJournals: '/app/finance/journals',
+  financeLedgerAccounts: '/app/finance/ledger-accounts',
+  financeGeneralLedger: '/app/finance/general-ledger',
+  financeTrialBalance: '/app/finance/trial-balance',
   financeFx: '/app/finance/fx',
   financeFxRates: '/app/finance/fx/rates',
   financeFxRateNew: '/app/finance/fx/rates/new',
@@ -94,6 +106,14 @@ export function financePaymentPath(paymentId: string): string {
   return `${ROUTES.financePayments}/${paymentId}`;
 }
 
+export function financeExpensePath(expenseId: string): string {
+  return `${ROUTES.financeExpenses}/${expenseId}`;
+}
+
+export function financeJournalPath(journalId: string): string {
+  return `${ROUTES.financeJournals}/${journalId}`;
+}
+
 export function financeReceiptPath(receiptId: string): string {
   return `${ROUTES.financeReceipts}/${receiptId}`;
 }
@@ -104,6 +124,15 @@ export function financeLoanPath(loanId: string): string {
 
 export function financePayablePath(payableId: string): string {
   return `${ROUTES.financePayables}/${payableId}`;
+}
+
+export function financeSettlementPath(settlementId: string): string {
+  return `${ROUTES.financeSettlements}/${settlementId}`;
+}
+
+export function financeExpensesUnpaidPath(): string {
+  const params = new URLSearchParams({ paymentStatus: 'UNPAID' });
+  return `${ROUTES.financeExpenses}?${params.toString()}`;
 }
 
 export function financeFxConversionPath(conversionId: string): string {
@@ -271,4 +300,9 @@ export function warehouseInventoryPositionMovementsPath(filters: {
 export function auditEntityPath(entityType: string, entityId: string): string {
   const params = new URLSearchParams({ entityType, entityId });
   return `${ROUTES.audit}?${params.toString()}`;
+}
+
+export function financeAuditEntityPath(entityType: string, entityId: string): string {
+  const params = new URLSearchParams({ entityType, entityId });
+  return `${ROUTES.financeAudit}?${params.toString()}`;
 }

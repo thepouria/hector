@@ -19,11 +19,16 @@ import { CreatePurchaseOrderCostDto } from './dto/create-purchase-order-cost.dto
 import { ListPurchaseOrderCostsQueryDto } from './dto/list-purchase-order-costs.query.dto';
 import { UpdatePurchaseOrderCostDto } from './dto/update-purchase-order-cost.dto';
 import { VoidPurchaseOrderCostDto } from './dto/void-purchase-order-cost.dto';
+import {
+  AllocatePurchaseCostBodyDto,
+  PreviewPurchaseCostAllocationBodyDto,
+  SetPurchaseCostTreatmentBodyDto,
+} from './dto/purchase-cost-finance.dto';
+import { PurchaseOrderCostFinanceService } from './purchase-order-cost-finance.service';
 import { PurchaseOrderCostsService } from './purchase-order-costs.service';
 
 /**
- * Purchase Order Costs (Phase 2.8).
- * Broader purchasing permissions: read / manage (create+void+draft edit).
+ * Purchase Order Costs (Phase 2.8 + Phase 4.7 financialization).
  */
 @ApiTags('purchasing-purchase-order-costs')
 @ApiBearerAuth()
@@ -32,7 +37,10 @@ import { PurchaseOrderCostsService } from './purchase-order-costs.service';
 @ApiCompanyHeader()
 @Controller('purchasing/purchase-orders/:purchaseOrderId/costs')
 export class PurchaseOrderCostsController {
-  constructor(private readonly costs: PurchaseOrderCostsService) {}
+  constructor(
+    private readonly costs: PurchaseOrderCostsService,
+    private readonly costFinance: PurchaseOrderCostFinanceService,
+  ) {}
 
   @Get()
   @RequirePermissions(PERMISSIONS.PURCHASING_READ)
@@ -106,6 +114,54 @@ export class PurchaseOrderCostsController {
     @Body() body: VoidPurchaseOrderCostDto,
   ) {
     const data = await this.costs.void(company, purchaseOrderId, costId, body);
+    return { data };
+  }
+
+  @Post(':costId/set-treatment')
+  @RequirePermissions(PERMISSIONS.PURCHASING_MANAGE)
+  @ApiOperation({
+    summary: 'Set CAPITALIZABLE or PERIOD_EXPENSE treatment (immutable once set)',
+  })
+  async setTreatment(
+    @CurrentCompany() company: CompanyContext,
+    @Param('purchaseOrderId', ParseUUIDPipe) purchaseOrderId: string,
+    @Param('costId', ParseUUIDPipe) costId: string,
+    @Body() body: SetPurchaseCostTreatmentBodyDto,
+  ) {
+    const data = await this.costFinance.setTreatment(
+      company,
+      purchaseOrderId,
+      costId,
+      body,
+    );
+    return { data };
+  }
+
+  @Post(':costId/allocation-preview')
+  @RequirePermissions(PERMISSIONS.PURCHASING_READ)
+  @ApiOperation({ summary: 'Preview purchase cost allocation (does not persist)' })
+  async previewAllocation(
+    @CurrentCompany() company: CompanyContext,
+    @Param('purchaseOrderId', ParseUUIDPipe) purchaseOrderId: string,
+    @Param('costId', ParseUUIDPipe) costId: string,
+    @Body() body: PreviewPurchaseCostAllocationBodyDto,
+  ) {
+    return this.costFinance.previewAllocation(company, purchaseOrderId, costId, body);
+  }
+
+  @Post(':costId/allocate')
+  @RequirePermissions(PERMISSIONS.PURCHASING_MANAGE)
+  @ApiOperation({
+    summary:
+      'Persist allocation; CAPITALIZABLE updates FIFO unit costs; PERIOD_EXPENSE does not',
+  })
+  async allocate(
+    @CurrentCompany() company: CompanyContext,
+    @Param('purchaseOrderId', ParseUUIDPipe) purchaseOrderId: string,
+    @Param('costId', ParseUUIDPipe) costId: string,
+    @Body() body: AllocatePurchaseCostBodyDto,
+  ) {
+    const data = await this.costFinance.allocate(company, purchaseOrderId, costId, body);
     return { data };
   }
 }

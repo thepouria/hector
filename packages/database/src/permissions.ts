@@ -110,6 +110,8 @@ export const PERMISSIONS = {
   FINANCE_LOANS_MANAGE: 'finance.loans.manage',
   FINANCE_PAYABLES_READ: 'finance.payables.read',
   FINANCE_PAYABLES_MANAGE: 'finance.payables.manage',
+  FINANCE_SETTLEMENTS_READ: 'finance.settlements.read',
+  FINANCE_SETTLEMENTS_MANAGE: 'finance.settlements.manage',
   FINANCE_PAYMENTS_READ: 'finance.payments.read',
   FINANCE_PAYMENTS_CREATE: 'finance.payments.create',
   FINANCE_RECEIPTS_READ: 'finance.receipts.read',
@@ -403,6 +405,14 @@ export const PERMISSION_DEFINITIONS: ReadonlyArray<{
   {
     key: PERMISSIONS.FINANCE_PAYABLES_MANAGE,
     description: 'Manage supplier payable recognition/adjustments within Finance policy',
+  },
+  {
+    key: PERMISSIONS.FINANCE_SETTLEMENTS_READ,
+    description: 'Read liability settlement allocations (Payment ↔ payable / expense)',
+  },
+  {
+    key: PERMISSIONS.FINANCE_SETTLEMENTS_MANAGE,
+    description: 'Create and reverse liability settlement allocations',
   },
   { key: PERMISSIONS.FINANCE_PAYMENTS_READ, description: 'Read standalone financial payments (money-out)' },
   {

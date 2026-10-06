@@ -79,6 +79,20 @@ export {
   ReceiptStatus,
   PaymentPurposeType,
   ReceiptSourceType,
+  ExpenseCategoryStatus,
+  ExpenseStatus,
+  ExpensePaymentStatus,
+  ExpenseSourceType,
+  ExpensePaymentAllocationStatus,
+  PurchaseCostTreatment,
+  PurchaseCostAllocationTargetType,
+  PurchaseCostPaymentAllocationStatus,
+  InventoryCostComponentSourceType,
+  LedgerAccountType,
+  LedgerAccountKind,
+  LedgerAccountStatus,
+  JournalEntryStatus,
+  JournalLineDirection,
 } from './generated/prisma/enums';
 export {
   PERMISSIONS,
@@ -105,6 +119,12 @@ export {
   type RebuildPlanRow,
   type RebuildReport,
 } from './inventory-reconciliation';
+export {
+  runFinanceIntegrityChecks,
+  formatFinanceIntegrityReport,
+  type FinanceIntegrityViolation,
+  type FinanceIntegritySummary,
+} from './finance-integrity';
 export {
   SYSTEM_TRANSIT_WAREHOUSE_CODE,
   SYSTEM_TRANSIT_LOCATION_CODE,

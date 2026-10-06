@@ -194,6 +194,8 @@ export const DOMAIN_EVENTS = {
   SUPPLIER_PAYABLE_SETTLED: 'finance.payable.settled',
   SUPPLIER_PAYABLE_OPENING_RECORDED: 'finance.payable.opening_recorded',
   SUPPLIER_PAYABLE_ALLOCATION_POSTED: 'finance.payable.allocation_posted',
+  SUPPLIER_PAYABLE_SETTLEMENT_POSTED: 'finance.payable.settlement_posted',
+  SUPPLIER_PAYABLE_SETTLEMENT_REVERSED: 'finance.payable.settlement_reversed',
   SUPPLIER_CREDIT_CREATED: 'finance.payable.credit_created',
   SUPPLIER_PAYMENT_RECORDED: 'finance.payment.recorded',
 
@@ -212,6 +214,19 @@ export const DOMAIN_EVENTS = {
   RECEIPT_POSTED: 'finance.receipt.posted',
   RECEIPT_CANCELLED: 'finance.receipt.cancelled',
   RECEIPT_REVERSED: 'finance.receipt.reversed',
+
+  EXPENSE_CATEGORY_CREATED: 'finance.expense.category_created',
+  EXPENSE_CATEGORY_ARCHIVED: 'finance.expense.category_archived',
+  EXPENSE_CREATED: 'finance.expense.created',
+  EXPENSE_APPROVED: 'finance.expense.approved',
+  EXPENSE_CANCELLED: 'finance.expense.cancelled',
+  EXPENSE_PAYMENT_ALLOCATED: 'finance.expense.payment_allocated',
+  EXPENSE_PAID: 'finance.expense.paid',
+  PURCHASE_COST_TREATMENT_SET: 'finance.purchase_cost.treatment_set',
+  PURCHASE_COST_ALLOCATED: 'finance.purchase_cost.allocated',
+  PURCHASE_COST_CAPITALIZED: 'finance.purchase_cost.capitalized',
+  JOURNAL_POSTED: 'finance.journal.posted',
+  JOURNAL_REVERSED: 'finance.journal.reversed',
 } as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENTS)[keyof typeof DOMAIN_EVENTS];

@@ -37,6 +37,9 @@ import {
 } from './finance-accounts.constants';
 import { assertOptionalText, normalizeSearchQuery } from './finance-accounts.normalization';
 import { parseMoneyAmount } from './money/money';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import { postTransferJournalInTx } from './journal-builders';
 import type {
   CreateAccountTransferDto,
   ListAccountTransfersQueryDto,
@@ -62,6 +65,8 @@ export class AccountTransfersService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly journalPosting: JournalPostingService,
+    private readonly ledgerAccounts: LedgerAccountsService,
   ) {}
 
   async list(
@@ -571,6 +576,22 @@ export class AccountTransfersService {
         },
       ],
     });
+
+    await postTransferJournalInTx(
+      tx,
+      { journals: this.journalPosting, ledger: this.ledgerAccounts },
+      {
+        companyId,
+        actorUserId,
+        transferId: locked.id,
+        sourceAccountId: source.id,
+        destinationAccountId: destination.id,
+        amount: locked.amount,
+        currency: locked.currency,
+        effectiveAt: locked.effectiveAt,
+        number: locked.number,
+      },
+    );
 
     const updated = await tx.financialAccountTransfer.update({
       where: { id: locked.id },

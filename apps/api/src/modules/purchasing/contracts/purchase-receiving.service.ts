@@ -340,10 +340,17 @@ export class PurchaseReceivingService extends PurchaseReceivingContract {
         reason: row.reason,
         notes: row.notes,
         confirmedBy: row.resolvedBy
-          ? {
-              id: row.resolvedBy.id,
-              displayName: `${row.resolvedBy.firstName} ${row.resolvedBy.lastName}`.trim(),
-            }
+          ? (() => {
+              const resolvedBy = row.resolvedBy as {
+                id: string;
+                firstName: string;
+                lastName: string;
+              };
+              return {
+                id: resolvedBy.id,
+                displayName: `${resolvedBy.firstName} ${resolvedBy.lastName}`.trim(),
+              };
+            })()
           : null,
         confirmedAt: row.resolvedAt?.toISOString() ?? null,
       })),

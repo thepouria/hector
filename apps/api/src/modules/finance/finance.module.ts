@@ -19,53 +19,87 @@ import { ReceiptsController } from './receipts.controller';
 import { ReceiptsService } from './receipts.service';
 import { SupplierPayablesController } from './supplier-payables.controller';
 import { SupplierPayablesService } from './supplier-payables.service';
+import { ExpenseCategoriesController, ExpensesController } from './expenses.controller';
+import { ExpenseCategoriesService } from './expense-categories.service';
+import { ExpensesService } from './expenses.service';
+import {
+  FinanceLedgerReportsController,
+  JournalsController,
+  LedgerAccountsController,
+} from './journals.controller';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import { SettlementsController } from './settlements.controller';
+import { SettlementService } from './settlement.service';
+import { FinanceDashboardController } from './finance-dashboard.controller';
+import { FinanceDashboardService } from './finance-dashboard.service';
+import { FinanceAuditController } from './finance-audit.controller';
 
 /**
  * Finance domain module.
- * Phase 4.1: architecture + money primitives + contracts
- * Phase 4.2: Financial Accounts + same-currency transfers
- * Phase 4.3: Capital contributions + Loans / disbursements / repayments
- * Phase 4.4: Supplier Payables (recognition on GRN POST; no cash on recognition)
- * Phase 4.5: FX rates + FX conversions + currency positions / valuation (read)
- * Phase 4.6: Payments + Receipts (+ Transfer reuse)
+ * Phase 4.1–4.7: Accounts, Capital, Loans, AP, FX, Payments, Expenses
+ * Phase 4.8: Ledger accounts + Journal posting foundation
+ * Phase 4.9: Liability Settlement (Supplier AP ↔ Payment)
+ * Phase 4.11: Finance Dashboard + Finance Audit
  *
  * Must NOT import WarehouseModule (Warehouse → Finance only).
+ * Purchasing may import Finance for PERIOD_EXPENSE recognition + journals.
  */
 @Module({
   imports: [AuditModule, forwardRef(() => RbacModule)],
   controllers: [
+    FinanceDashboardController,
+    FinanceAuditController,
     AccountsController,
     AccountTransfersController,
     CapitalContributionsController,
     LoansController,
     SupplierPayablesController,
+    SettlementsController,
     FxController,
     PaymentsController,
     ReceiptsController,
+    ExpenseCategoriesController,
+    ExpensesController,
+    LedgerAccountsController,
+    JournalsController,
+    FinanceLedgerReportsController,
   ],
   providers: [
+    FinanceDashboardService,
     AccountsService,
     AccountTransfersService,
     CapitalContributionsService,
     LoansService,
     SupplierPayablesService,
+    SettlementService,
     FxRatesService,
     FxConversionsService,
     FxPositionsService,
     PaymentsService,
     ReceiptsService,
+    ExpenseCategoriesService,
+    ExpensesService,
+    LedgerAccountsService,
+    JournalPostingService,
   ],
   exports: [
+    FinanceDashboardService,
     AccountsService,
     AccountTransfersService,
     CapitalContributionsService,
     LoansService,
     SupplierPayablesService,
+    SettlementService,
     FxRatesService,
     FxConversionsService,
     FxPositionsService,
     PaymentsService,
     ReceiptsService,
+    ExpenseCategoriesService,
+    ExpensesService,
+    LedgerAccountsService,
+    JournalPostingService,
   ],
 })
 export class FinanceModule {}

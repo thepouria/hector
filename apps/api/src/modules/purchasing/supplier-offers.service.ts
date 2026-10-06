@@ -694,10 +694,17 @@ export class SupplierOffersService {
       supplier: row.supplier,
       sku: row.sku,
       supplierContact: row.supplierContact,
-      createdBy: {
-        id: row.createdBy.id,
-        displayName: `${row.createdBy.firstName} ${row.createdBy.lastName}`.trim(),
-      },
+      createdBy: (() => {
+        const createdBy = row.createdBy as {
+          id: string;
+          firstName: string;
+          lastName: string;
+        };
+        return {
+          id: createdBy.id,
+          displayName: `${createdBy.firstName} ${createdBy.lastName}`.trim(),
+        };
+      })(),
     };
   }
 }

@@ -30,6 +30,7 @@
     "db:check:inventory": "pnpm --filter @hector/database exec tsx scripts/inventory-integrity-check.ts",
     "db:check:valuation": "pnpm --filter @hector/database exec tsx scripts/valuation-integrity-check.ts",
     "db:check:finance": "pnpm --filter @hector/database exec tsx scripts/finance-integrity-check.ts",
+    "finance:integrity": "pnpm db:check:finance",
     "db:rebuild:inventory-balances": "pnpm --filter @hector/database exec tsx scripts/rebuild-inventory-balances.ts",
     "inventory:reconcile": "pnpm --filter @hector/database exec tsx scripts/inventory-reconcile.ts"
   },

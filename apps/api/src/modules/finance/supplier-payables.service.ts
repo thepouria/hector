@@ -42,9 +42,12 @@ import {
   formatSupplierCreditNumber,
   formatSupplierPayableNumber,
 } from './supplier-payable-numbering';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import { postSupplierApRecognitionJournalInTx } from './journal-builders';
 import {
   derivePayableStatus,
-  derivePayableTotals,
+  derivePayableTotalsFromMovements,
   PAYABLE_AGING_BUCKETS,
   type PayableAgingBucket,
 } from './supplier-payable-outstanding';
@@ -87,6 +90,8 @@ export class SupplierPayablesService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly journalPosting: JournalPostingService,
+    private readonly ledgerAccounts: LedgerAccountsService,
   ) {}
 
   async list(
@@ -120,7 +125,7 @@ export class SupplierPayablesService {
         include: {
           supplier: { select: supplierSelect },
           purchaseOrder: { select: poSelect },
-          movements: { select: { direction: true, amount: true } },
+          movements: { select: { direction: true, amount: true, type: true } },
         },
         orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
         skip,
@@ -165,7 +170,7 @@ export class SupplierPayablesService {
         companyId: company.companyId,
         status: { not: SupplierPayableStatus.CANCELLED },
       },
-      include: { movements: { select: { direction: true, amount: true } } },
+      include: { movements: { select: { direction: true, amount: true, type: true } } },
     });
     const credits = await this.database.client.supplierCredit.findMany({
       where: {
@@ -236,7 +241,7 @@ export class SupplierPayablesService {
         companyId: company.companyId,
         status: { not: SupplierPayableStatus.CANCELLED },
       },
-      include: { movements: { select: { direction: true, amount: true } } },
+      include: { movements: { select: { direction: true, amount: true, type: true } } },
     });
 
     const map = new Map<string, { count: number; outstanding: Prisma.Decimal }>();
@@ -528,7 +533,9 @@ export class SupplierPayablesService {
 
     const payable = await tx.supplierPayable.findFirstOrThrow({
       where: { id: input.payableId, companyId: input.companyId },
-      include: { movements: { select: { direction: true, amount: true } } },
+      include: {
+        movements: { select: { direction: true, amount: true, type: true } },
+      },
     });
 
     if (payable.status === SupplierPayableStatus.CANCELLED) {
@@ -574,6 +581,12 @@ export class SupplierPayablesService {
         currency: input.currency,
         paymentSourceType: input.paymentSourceType ?? null,
         paymentSourceId: input.paymentSourceId ?? null,
+        paymentCurrency: input.currency,
+        paymentAmountApplied: amount,
+        liabilityAmountSettled: amount,
+        baseCarryingAmount: amount,
+        basePaymentAmount: amount,
+        fxDifferenceBase: new Prisma.Decimal(0),
         requestId: input.requestId ?? null,
         status: SupplierPaymentAllocationStatus.POSTED,
         effectiveAt: input.effectiveAt,
@@ -678,6 +691,7 @@ export class SupplierPayablesService {
     const recognizedAt = grn.postedAt ?? new Date();
     const payableIds = new Set<string>();
     let createdLineCount = 0;
+    let recognizedAmount = new Prisma.Decimal(0);
 
     for (const item of grn.items) {
       const existingLine = await tx.supplierPayableLine.findFirst({
@@ -755,6 +769,7 @@ export class SupplierPayablesService {
 
       await this.refreshPayableStatusInTx(tx, companyId, payable.id);
       createdLineCount += 1;
+      recognizedAmount = recognizedAmount.plus(lineAmount);
 
       await this.auditService.record(tx, {
         action: AUDIT_ACTIONS.SUPPLIER_PAYABLE_RECOGNIZED,
@@ -772,6 +787,25 @@ export class SupplierPayablesService {
           actorUserId,
         },
       });
+    }
+
+    if (recognizedAmount.gt(0)) {
+      await postSupplierApRecognitionJournalInTx(
+        tx,
+        { journals: this.journalPosting, ledger: this.ledgerAccounts },
+        {
+          companyId,
+          actorUserId,
+          goodsReceiptId: grn.id,
+          amount: recognizedAmount,
+          currency,
+          effectiveAt: recognizedAt,
+          grnNumber: grn.number,
+          referenceFxRate: po.referenceFxRate,
+          referenceFxBaseCurrency: po.referenceFxBaseCurrency,
+          referenceFxQuoteCurrency: po.referenceFxQuoteCurrency,
+        },
+      );
     }
 
     return { payableIds: [...payableIds], createdLineCount };
@@ -855,7 +889,7 @@ export class SupplierPayablesService {
               purchaseOrderId: { in: [...relatedPoIds] },
               status: { not: SupplierPayableStatus.CANCELLED },
             },
-            include: { movements: { select: { direction: true, amount: true } } },
+            include: { movements: { select: { direction: true, amount: true, type: true } } },
             orderBy: [{ dueDate: 'asc' }, { recognizedAt: 'asc' }, { createdAt: 'asc' }],
           })
         : await tx.supplierPayable.findMany({
@@ -864,7 +898,7 @@ export class SupplierPayablesService {
               supplierId: purchaseReturn.supplierId,
               status: { not: SupplierPayableStatus.CANCELLED },
             },
-            include: { movements: { select: { direction: true, amount: true } } },
+            include: { movements: { select: { direction: true, amount: true, type: true } } },
             orderBy: [{ dueDate: 'asc' }, { recognizedAt: 'asc' }, { createdAt: 'asc' }],
           });
 
@@ -916,7 +950,7 @@ export class SupplierPayablesService {
       await this.lockPayable(tx, companyId, payable.id);
       const locked = await tx.supplierPayable.findFirstOrThrow({
         where: { id: payable.id, companyId },
-        include: { movements: { select: { direction: true, amount: true } } },
+        include: { movements: { select: { direction: true, amount: true, type: true } } },
       });
       const totals = this.totalsFromMovements(locked.movements);
       if (totals.outstanding.lte(0)) continue;
@@ -1120,7 +1154,9 @@ export class SupplierPayablesService {
   ): Promise<void> {
     const payable = await tx.supplierPayable.findFirstOrThrow({
       where: { id: payableId, companyId },
-      include: { movements: { select: { direction: true, amount: true } } },
+      include: {
+        movements: { select: { direction: true, amount: true, type: true } },
+      },
     });
     const totals = this.totalsFromMovements(payable.movements);
     const status = derivePayableStatus({
@@ -1198,16 +1234,19 @@ export class SupplierPayablesService {
   }
 
   private totalsFromMovements(
-    movements: Array<{ direction: SupplierLiabilityMovementDirection; amount: Prisma.Decimal }>,
+    movements: Array<{
+      direction: SupplierLiabilityMovementDirection;
+      amount: Prisma.Decimal;
+      type?: SupplierLiabilityMovementType;
+    }>,
   ) {
-    return derivePayableTotals({
-      increases: movements
-        .filter((m) => m.direction === SupplierLiabilityMovementDirection.INCREASE)
-        .map((m) => m.amount),
-      decreases: movements
-        .filter((m) => m.direction === SupplierLiabilityMovementDirection.DECREASE)
-        .map((m) => m.amount),
-    });
+    return derivePayableTotalsFromMovements(
+      movements.map((m) => ({
+        direction: m.direction,
+        amount: m.amount,
+        type: m.type ?? SupplierLiabilityMovementType.PURCHASE_RECOGNITION,
+      })),
+    );
   }
 
   private toListView(row: {

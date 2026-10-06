@@ -1,0 +1,98 @@
+/**
+ * Phase 4.8 — Financial Ledger + Journal Foundation constants.
+ * Cash truth remains AccountMovement. Journals are accrual/classification truth.
+ */
+
+export const LEDGER_SYSTEM_KEYS = {
+  CASH_AND_BANK: 'CASH_AND_BANK',
+  INVENTORY: 'INVENTORY',
+  SUPPLIER_PAYABLE: 'SUPPLIER_PAYABLE',
+  LOAN_PAYABLE: 'LOAN_PAYABLE',
+  EXPENSE_PAYABLE: 'EXPENSE_PAYABLE',
+  FINANCE_CLEARING: 'FINANCE_CLEARING',
+  UNCLASSIFIED_PAYMENTS: 'UNCLASSIFIED_PAYMENTS',
+  UNCLASSIFIED_RECEIPTS: 'UNCLASSIFIED_RECEIPTS',
+  CAPITAL_EQUITY: 'CAPITAL_EQUITY',
+  OPERATING_EXPENSE: 'OPERATING_EXPENSE',
+  FX_GAIN: 'FX_GAIN',
+  FX_LOSS: 'FX_LOSS',
+  REVENUE_FOUNDATION: 'REVENUE_FOUNDATION',
+} as const;
+
+export type LedgerSystemKey = (typeof LEDGER_SYSTEM_KEYS)[keyof typeof LEDGER_SYSTEM_KEYS];
+
+/** Journal sourceType provenance keys (not free-text). */
+export const JOURNAL_SOURCE_TYPES = {
+  MANUAL_JOURNAL: 'MANUAL_JOURNAL',
+  CAPITAL_CONTRIBUTION: 'CAPITAL_CONTRIBUTION',
+  LOAN_DISBURSEMENT: 'LOAN_DISBURSEMENT',
+  LOAN_REPAYMENT: 'LOAN_REPAYMENT',
+  ACCOUNT_TRANSFER: 'ACCOUNT_TRANSFER',
+  PAYMENT: 'PAYMENT',
+  RECEIPT: 'RECEIPT',
+  EXPENSE: 'EXPENSE',
+  EXPENSE_PAYMENT_ALLOCATION: 'EXPENSE_PAYMENT_ALLOCATION',
+  SUPPLIER_PAYMENT_ALLOCATION: 'SUPPLIER_PAYMENT_ALLOCATION',
+  PURCHASE_ORDER_COST: 'PURCHASE_ORDER_COST',
+  GOODS_RECEIPT: 'GOODS_RECEIPT',
+  JOURNAL_REVERSAL: 'JOURNAL_REVERSAL',
+} as const;
+
+export type JournalSourceType =
+  (typeof JOURNAL_SOURCE_TYPES)[keyof typeof JOURNAL_SOURCE_TYPES];
+
+/** Journal effectType discriminators (unique with source). */
+export const JOURNAL_EFFECT_TYPES = {
+  MANUAL: 'MANUAL',
+  CAPITAL_POST: 'CAPITAL_POST',
+  CAPITAL_REVERSAL: 'CAPITAL_REVERSAL',
+  LOAN_DISBURSE: 'LOAN_DISBURSE',
+  LOAN_DISBURSE_REVERSAL: 'LOAN_DISBURSE_REVERSAL',
+  LOAN_REPAY_PRINCIPAL: 'LOAN_REPAY_PRINCIPAL',
+  LOAN_REPAY_REVERSAL: 'LOAN_REPAY_REVERSAL',
+  TRANSFER_POST: 'TRANSFER_POST',
+  TRANSFER_REVERSAL: 'TRANSFER_REVERSAL',
+  PAYMENT_CLEARING: 'PAYMENT_CLEARING',
+  PAYMENT_CLEARING_REVERSAL: 'PAYMENT_CLEARING_REVERSAL',
+  RECEIPT_CLEARING: 'RECEIPT_CLEARING',
+  RECEIPT_CLEARING_REVERSAL: 'RECEIPT_CLEARING_REVERSAL',
+  EXPENSE_RECOGNITION: 'EXPENSE_RECOGNITION',
+  EXPENSE_SETTLEMENT: 'EXPENSE_SETTLEMENT',
+  EXPENSE_SETTLEMENT_REVERSAL: 'EXPENSE_SETTLEMENT_REVERSAL',
+  SUPPLIER_AP_SETTLEMENT: 'SUPPLIER_AP_SETTLEMENT',
+  SUPPLIER_AP_SETTLEMENT_REVERSAL: 'SUPPLIER_AP_SETTLEMENT_REVERSAL',
+  PURCHASE_COST_CAPITALIZE: 'PURCHASE_COST_CAPITALIZE',
+  SUPPLIER_AP_RECOGNITION: 'SUPPLIER_AP_RECOGNITION',
+  REVERSAL: 'REVERSAL',
+} as const;
+
+export type JournalEffectType =
+  (typeof JOURNAL_EFFECT_TYPES)[keyof typeof JOURNAL_EFFECT_TYPES];
+
+export const JOURNAL_ERROR_MESSAGES = {
+  NOT_FOUND: 'سند روزنامه یافت نشد.',
+  LEDGER_ACCOUNT_NOT_FOUND: 'حساب دفتر یافت نشد.',
+  LEDGER_ACCOUNT_INACTIVE: 'حساب دفتر فعال نیست.',
+  LEDGER_CODE_TAKEN: 'کد حساب دفتر تکراری است.',
+  SYSTEM_KEY_NOT_FOUND: 'حساب سیستمی دفتر یافت نشد.',
+  UNBALANCED: 'سند روزنامه باید از نظر مبلغ پایه متوازن باشد.',
+  ZERO_TOTAL: 'مجموع بدهکار/بستانکار سند نمی‌تواند صفر باشد.',
+  TOO_FEW_LINES: 'سند روزنامه باید حداقل دو ردیف داشته باشد.',
+  INVALID_LINE_AMOUNT: 'مبلغ ردیف روزنامه باید مثبت باشد.',
+  NOT_POSTABLE: 'فقط اسناد پیش‌نویس قابل ثبت هستند.',
+  NOT_REVERSIBLE: 'فقط اسناد ثبت‌شده قابل برگشت هستند.',
+  ALREADY_REVERSED: 'این سند قبلاً برگشت خورده است.',
+  POSTED_IMMUTABLE: 'سند ثبت‌شده قابل ویرایش نیست.',
+  MANUAL_NO_CASH: 'سند دستی روزنامه حرکت نقدی ایجاد نمی‌کند.',
+  FX_RATE_REQUIRED: 'برای ارز غیرپایه، نرخ تبدیل صریح لازم است.',
+  CROSS_COMPANY: 'ردیف‌های روزنامه باید متعلق به همان شرکت باشند.',
+  IDEMPOTENCY_CONFLICT: 'تعارض کلید تکرارناپذیری سند روزنامه.',
+  INVALID_DESCRIPTION: 'شرح سند روزنامه نامعتبر است.',
+  FINANCIAL_ACCOUNT_UNMAPPED: 'حساب مالی به حساب دفتر نگاشت نشده است.',
+  EXPENSE_CATEGORY_UNMAPPED: 'دسته هزینه به حساب دفتر نگاشت نشده است.',
+} as const;
+
+export const JOURNAL_DESCRIPTION_MAX_LENGTH = 2000;
+export const JOURNAL_REFERENCE_MAX_LENGTH = 200;
+export const LEDGER_CODE_MAX_LENGTH = 64;
+export const LEDGER_NAME_MAX_LENGTH = 200;

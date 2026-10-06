@@ -765,10 +765,11 @@ describe('Finance Payments + Receipts + Transfers (e2e)', () => {
     });
     expect(allocations).toBe(0);
 
-    // No Expense / Revenue domain tables in 4.6 — only cash movements.
-    expect(
-      (database.client as unknown as { expense?: unknown }).expense,
-    ).toBeUndefined();
+    // Phase 4.6/4.7: Payment with purpose EXPENSE does NOT auto-create Expense rows.
+    // Expense exists as a separate domain (4.7); cash Payment ≠ Expense recognition.
+    const expenseCountBefore = await database.client.expense.count({
+      where: { companyId },
+    });
     expect(
       (database.client as unknown as { revenue?: unknown }).revenue,
     ).toBeUndefined();
@@ -784,6 +785,10 @@ describe('Finance Payments + Receipts + Transfers (e2e)', () => {
         postImmediately: true,
       })
       .expect(201);
+    const expenseCountAfter = await database.client.expense.count({
+      where: { companyId },
+    });
+    expect(expenseCountAfter).toBe(expenseCountBefore);
     const movTypes = await database.client.financialAccountMovement.findMany({
       where: { companyId, sourceId: expensePurpose.body.data.id },
       select: { type: true, sourceType: true },

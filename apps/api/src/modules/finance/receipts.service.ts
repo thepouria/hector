@@ -37,6 +37,9 @@ import {
 import { assertOptionalText, normalizeSearchQuery } from './finance-accounts.normalization';
 import { parseMoneyAmount } from './money/money';
 import { allocateReceiptSequence, formatReceiptNumber } from './payment-numbering';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import { postReceiptClearingJournalInTx } from './journal-builders';
 import type {
   CreateReceiptDto,
   ListReceiptsQueryDto,
@@ -61,6 +64,8 @@ export class ReceiptsService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly journalPosting: JournalPostingService,
+    private readonly ledgerAccounts: LedgerAccountsService,
   ) {}
 
   async list(
@@ -603,6 +608,21 @@ export class ReceiptsService {
         },
       ],
     });
+
+    await postReceiptClearingJournalInTx(
+      tx,
+      { journals: this.journalPosting, ledger: this.ledgerAccounts },
+      {
+        companyId,
+        actorUserId,
+        receiptId: locked.id,
+        accountId: locked.accountId,
+        amount: locked.amount,
+        currency: locked.currency,
+        effectiveAt: locked.effectiveAt,
+        number: locked.number,
+      },
+    );
 
     const updated = await tx.receipt.update({
       where: { id: locked.id },

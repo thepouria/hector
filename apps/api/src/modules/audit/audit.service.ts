@@ -64,8 +64,19 @@ export class AuditService {
   async list(
     companyId: string,
     query: ListAuditLogsQueryDto,
+    options?: { restrictEntityTypes?: readonly string[] },
   ): Promise<{ data: AuditListItem[]; meta: PaginationMeta }> {
-    const where = this.buildWhere(companyId, query);
+    if (options?.restrictEntityTypes && query.entityType) {
+      if (!options.restrictEntityTypes.includes(query.entityType)) {
+        throw new AppError({
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'entityType is outside the allowed finance audit set.',
+          statusCode: 400,
+        });
+      }
+    }
+
+    const where = this.buildWhere(companyId, query, options?.restrictEntityTypes);
     const skip = (query.page - 1) * query.pageSize;
     const order: Prisma.SortOrder = query.sortOrder ?? 'desc';
 
@@ -106,7 +117,11 @@ export class AuditService {
     };
   }
 
-  async getById(companyId: string, auditLogId: string): Promise<AuditDetail> {
+  async getById(
+    companyId: string,
+    auditLogId: string,
+    options?: { restrictEntityTypes?: readonly string[] },
+  ): Promise<AuditDetail> {
     const row = await this.database.client.auditLog.findFirst({
       where: {
         id: auditLogId,
@@ -125,6 +140,17 @@ export class AuditService {
     });
 
     if (!row) {
+      throw new AppError({
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Audit log not found.',
+        statusCode: 404,
+      });
+    }
+
+    if (
+      options?.restrictEntityTypes &&
+      !options.restrictEntityTypes.includes(row.entityType)
+    ) {
       throw new AppError({
         code: ERROR_CODES.NOT_FOUND,
         message: 'Audit log not found.',
@@ -188,11 +214,19 @@ export class AuditService {
     return sanitizeAuditValue({ ...base, ...metadata }) as Record<string, JsonValue>;
   }
 
-  private buildWhere(companyId: string, query: ListAuditLogsQueryDto): Prisma.AuditLogWhereInput {
+  private buildWhere(
+    companyId: string,
+    query: ListAuditLogsQueryDto,
+    restrictEntityTypes?: readonly string[],
+  ): Prisma.AuditLogWhereInput {
     const where: Prisma.AuditLogWhereInput = { companyId };
 
     if (query.action) where.action = query.action;
-    if (query.entityType) where.entityType = query.entityType;
+    if (query.entityType) {
+      where.entityType = query.entityType;
+    } else if (restrictEntityTypes && restrictEntityTypes.length > 0) {
+      where.entityType = { in: [...restrictEntityTypes] };
+    }
     if (query.entityId) where.entityId = query.entityId;
     if (query.actorUserId) where.actorUserId = query.actorUserId;
     if (query.actorCompanyMemberId) where.actorCompanyMemberId = query.actorCompanyMemberId;

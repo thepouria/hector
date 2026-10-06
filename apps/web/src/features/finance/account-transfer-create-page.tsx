@@ -17,7 +17,7 @@ import {
 import { isApiClientError } from '@/lib/api/errors';
 import { mapBusinessError } from '@/lib/errors/business-errors';
 import { PERMISSIONS } from '@/lib/permissions/keys';
-import { financeAccountKeys } from '@/lib/query/keys';
+import { financeAccountKeys, financeDashboardKeys } from '@/lib/query/keys';
 import { ROUTES } from '@/lib/utils/routes';
 import { useSession } from '@/providers/app-providers';
 
@@ -62,6 +62,7 @@ export function AccountTransferCreatePageClient() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: financeAccountKeys.all(companyId) });
+      await queryClient.invalidateQueries({ queryKey: financeDashboardKeys.all(companyId) });
       toast.success('انتقال ثبت شد');
       router.push(ROUTES.financeAccounts);
     },

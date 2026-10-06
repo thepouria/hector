@@ -66,36 +66,39 @@ SRE DISPATCHED
 
 Hook: `SupplierReturnExecutionsService.dispatch()` → `reduceFromSupplierReturnInTx`.
 
-## Payment allocation contract (Phase 4.9 settlement)
+## Payment allocation contract (Phase 4.9 — landed)
 
-Phase 4.4 ships **liability-only** allocation foundation; Phase **4.6** adds standalone `Payment` (cash OUT) **without** settling payables.
+Phase 4.4 shipped **liability-only** allocation foundation; Phase **4.6** added standalone `Payment` (cash OUT) **without** settling payables; Phase **4.9** adds explicit settle.
 
 | Field | Role |
 |---|---|
-| `SupplierPaymentAllocation` | Posted allocation row (amount, currency, optional paymentSource*) |
+| `SupplierPaymentAllocation` | Settlement SoT (POSTED\|REVERSED; hard `paymentId?`; FX columns) |
 | `PAYMENT_ALLOCATION` decrease | Canonical liability reduction |
-| `paymentSourceType` / `paymentSourceId` | Links to Payment document when settlement lands |
+| `paymentSourceType` / `paymentSourceId` | Legacy soft link (prefer `paymentId`) |
+| `SettlementService` | Facade: preview / settle / reverse |
 
-**4.6 delivers:** Create / post Payment (cash OUT via AccountMovementsWriter). `purposeType=SUPPLIER` does **not** call `allocateSupplierPaymentInTx`.
+**4.6 delivers:** Create / post Payment (cash OUT). `purposeType=SUPPLIER` does **not** auto-settle (FIN-SET-001).
 
-**4.9 must:**
+**4.9 delivers:**
 
-1. In the **same** transaction as cash settlement: post/reference Payment + call `allocateSupplierPaymentInTx` with `paymentSourceType/Id` set.
-2. Never allocate without cash (or explicit non-cash settlement document).
-3. Preserve currency match + over-allocate guards already in 4.4.
-4. Keep idempotency via `requestId` on allocation.
-5. Handle FX settlement of foreign obligations with local cash (SETTLEMENT rate).
+1. Settle from POSTED Payment via `POST /finance/payments/:id/settlements` (multi-liability, one TX).
+2. Journal reclass DR SUPPLIER_PAYABLE · CR UNCLASSIFIED_PAYMENTS (no second Bank).
+3. Cross-currency with explicit SETTLEMENT rate + FX gain/loss.
+4. Idempotency via `requestId` (unique per company+requestId+payableId).
+5. Payment reverse restores liability (FIN-SET-010).
 
-4.4 UI/API allocation remains a **foundation** for tests and admin backfill — production cash+settle path lands in **4.9**, not 4.6.
+4.4 admin `POST /payables/:id/allocations` remains liability-only backfill (nullable `paymentId`).
 
-## FX settlement readiness (Phase 4.9)
+See `docs/finance-liability-settlement.md` for FIN-SET-001…014.
 
-| Today (4.4) | Deferred (4.9) |
+## FX settlement (Phase 4.9)
+
+| Capability | Behavior |
 |---|---|
-| FX_CREDIT payable currency = obligation currency (e.g. USD) | Settlement FX gain/loss vs reference rate |
-| `referenceFxRate` + base/quote snapshotted on payable | Payment in IRR against USD liability |
-| No revaluation in place | Explicit FX settlement document + journal |
-| Summary by currency only | Cross-currency payment workflow |
+| FX_CREDIT payable currency | Obligation currency preserved (e.g. USD) |
+| `referenceFxRate` on payable | Immutable carrying base (FIN-SET-008) |
+| Settlement rate | Explicit SETTLEMENT FxRate or validated rate input (FIN-SET-007) |
+| Realized FX | `fxDifferenceBase` + journal FX_LOSS / FX_GAIN (FIN-SET-009) |
 
 Changing PO `referenceFxRate` after recognition must **not** rewrite payable currency or recognized amounts.
 
@@ -105,7 +108,7 @@ Changing PO `referenceFxRate` after recognition must **not** rewrite payable cur
 - `SupplierPayableLine` — GRN item recognition slice (unique goodsReceiptItemId)
 - `SupplierLiabilityMovement` — INCREASE / DECREASE ledger
 - `SupplierCredit` — SC-######; excess return / credit notes
-- `SupplierPaymentAllocation` — foundation for 4.9 settlement (cash Payment exists in 4.6)
+- `SupplierPaymentAllocation` — Phase 4.9 settlement SoT (+ legacy liability-only rows)
 
 ## APIs
 
@@ -114,9 +117,10 @@ Changing PO `referenceFxRate` after recognition must **not** rewrite payable cur
 - `GET /finance/suppliers/:supplierId/payables`
 - `GET /finance/suppliers/:supplierId/statement`
 - `POST /finance/payables/opening`
-- `POST /finance/payables/:id/allocations` (liability only)
+- `POST /finance/payables/:id/allocations` (liability only / admin)
+- `POST /finance/payables/:id/settle` · `POST /finance/payments/:id/settlements` (4.9)
 
-Permissions: `finance.payables.read` / `finance.payables.manage`.
+Permissions: `finance.payables.read` / `finance.payables.manage`; settlements: `finance.settlements.read` / `finance.settlements.manage`.
 
 ## Integrity
 

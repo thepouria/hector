@@ -71,6 +71,10 @@ export type PurchaseOrderCostView = {
   reference: string | null;
   notes: string | null;
   allocationMethod: PurchaseCostAllocationMethod;
+  treatment: import('@hector/database').PurchaseCostTreatment | null;
+  expenseId: string | null;
+  financializedAt: Date | null;
+  allocatedAt: Date | null;
   supplierId: string | null;
   supplier: { id: string; name: string; code: string | null } | null;
   createdBy: { id: string; displayName: string };
@@ -569,17 +573,35 @@ export class PurchaseOrderCostsService {
       reference: row.reference,
       notes: row.notes,
       allocationMethod: row.allocationMethod,
+      treatment: row.treatment,
+      expenseId: row.expenseId,
+      financializedAt: row.financializedAt,
+      allocatedAt: row.allocatedAt,
       supplierId: row.supplierId,
       supplier: row.supplier,
-      createdBy: {
-        id: row.createdBy.id,
-        displayName: `${row.createdBy.firstName} ${row.createdBy.lastName}`.trim(),
-      },
+      createdBy: (() => {
+        const createdBy = row.createdBy as {
+          id: string;
+          firstName: string;
+          lastName: string;
+        };
+        return {
+          id: createdBy.id,
+          displayName: `${createdBy.firstName} ${createdBy.lastName}`.trim(),
+        };
+      })(),
       voidedBy: row.voidedBy
-        ? {
-            id: row.voidedBy.id,
-            displayName: `${row.voidedBy.firstName} ${row.voidedBy.lastName}`.trim(),
-          }
+        ? (() => {
+            const voidedBy = row.voidedBy as {
+              id: string;
+              firstName: string;
+              lastName: string;
+            };
+            return {
+              id: voidedBy.id,
+              displayName: `${voidedBy.firstName} ${voidedBy.lastName}`.trim(),
+            };
+          })()
         : null,
       voidReason: row.voidReason,
       voidedAt: row.voidedAt,

@@ -338,6 +338,116 @@ enum ReceiptSourceType {
   @@map("receipt_source_type")
 }
 
+/// Phase 4.7 — Expense category lifecycle.
+enum ExpenseCategoryStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("expense_category_status")
+}
+
+/// Economic lifecycle for Expense (settlement is separate).
+enum ExpenseStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+
+  @@map("expense_status")
+}
+
+/// Derived settlement state from active ExpensePaymentAllocation rows.
+enum ExpensePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+
+  @@map("expense_payment_status")
+}
+
+enum ExpenseSourceType {
+  MANUAL
+  PURCHASE_ORDER_COST
+
+  @@map("expense_source_type")
+}
+
+enum ExpensePaymentAllocationStatus {
+  ACTIVE
+  REVERSED
+
+  @@map("expense_payment_allocation_status")
+}
+
+/// Phase 4.8 — Chart of Accounts / ledger account classification.
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+
+  @@map("ledger_account_type")
+}
+
+enum LedgerAccountKind {
+  SYSTEM
+  USER_DEFINED
+
+  @@map("ledger_account_kind")
+}
+
+enum LedgerAccountStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("ledger_account_status")
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+  CANCELLED
+
+  @@map("journal_entry_status")
+}
+
+enum JournalLineDirection {
+  DEBIT
+  CREDIT
+
+  @@map("journal_line_direction")
+}
+
+/// Financial treatment for PurchaseOrderCost (null until financialized).
+enum PurchaseCostTreatment {
+  CAPITALIZABLE
+  PERIOD_EXPENSE
+
+  @@map("purchase_cost_treatment")
+}
+
+enum PurchaseCostAllocationTargetType {
+  PURCHASE_ORDER_ITEM
+  GOODS_RECEIPT_ITEM
+  INVENTORY_COST_LAYER
+
+  @@map("purchase_cost_allocation_target_type")
+}
+
+enum PurchaseCostPaymentAllocationStatus {
+  ACTIVE
+  REVERSED
+
+  @@map("purchase_cost_payment_allocation_status")
+}
+
+enum InventoryCostComponentSourceType {
+  PURCHASE_ORDER_COST
+
+  @@map("inventory_cost_component_source_type")
+}
+
 enum SupplierLiabilityMovementDirection {
   INCREASE
   DECREASE
@@ -365,9 +475,10 @@ enum SupplierCreditStatus {
   @@map("supplier_credit_status")
 }
 
-/// Foundation for Phase 4.6 — allocation rows only (no cash yet).
+/// Phase 4.9 — liability settlement allocation (Payment ↔ SupplierPayable).
 enum SupplierPaymentAllocationStatus {
   POSTED
+  REVERSED
 
   @@map("supplier_payment_allocation_status")
 }
@@ -733,7 +844,7 @@ enum PurchaseCostStatus {
   @@map("purchase_cost_status")
 }
 
-/// Future landed-cost allocation intent. Phase 2.8 stores UNALLOCATED only in practice.
+/// Landed-cost allocation method. Phase 4.7 applies BY_QUANTITY / BY_VALUE / MANUAL.
 enum PurchaseCostAllocationMethod {
   UNALLOCATED
   BY_QUANTITY
@@ -778,6 +889,7 @@ model User {
   purchaseOrdersCancelled PurchaseOrder[] @relation("PurchaseOrderCancelledBy")
   purchaseOrderCostsCreated PurchaseOrderCost[] @relation("PurchaseOrderCostCreatedBy")
   purchaseOrderCostsVoided  PurchaseOrderCost[] @relation("PurchaseOrderCostVoidedBy")
+  purchaseOrderCostsTreatmentSet PurchaseOrderCost[] @relation("PurchaseOrderCostTreatmentSetBy")
   purchaseOrderCorrectionsApplied PurchaseOrderCorrection[] @relation("PurchaseOrderCorrectionAppliedBy")
   purchaseDiscrepanciesCreated    PurchaseDiscrepancy[]     @relation("PurchaseDiscrepancyCreatedBy")
   purchaseDiscrepanciesResolved   PurchaseDiscrepancy[]     @relation("PurchaseDiscrepancyResolvedBy")
@@ -839,6 +951,7 @@ model User {
   loanRepaymentsReversed             LoanRepayment[]           @relation("LoanRepaymentReversedBy")
   supplierLiabilityMovementsCreated  SupplierLiabilityMovement[] @relation("SupplierLiabilityMovementCreatedBy")
   supplierPaymentAllocationsCreated  SupplierPaymentAllocation[] @relation("SupplierPaymentAllocationCreatedBy")
+  supplierPaymentAllocationsReversed SupplierPaymentAllocation[] @relation("SupplierPaymentAllocationReversedBy")
   fxRatesCreated                     FxRate[]                    @relation("FxRateCreatedBy")
   fxConversionsCreated               FxConversion[]              @relation("FxConversionCreatedBy")
   fxConversionsPosted                FxConversion[]              @relation("FxConversionPostedBy")
@@ -852,6 +965,21 @@ model User {
   receiptsPosted                     Receipt[]                   @relation("ReceiptPostedBy")
   receiptsCancelled                  Receipt[]                   @relation("ReceiptCancelledBy")
   receiptsReversed                   Receipt[]                   @relation("ReceiptReversedBy")
+  expenseCategoriesCreated           ExpenseCategory[]           @relation("ExpenseCategoryCreatedBy")
+  expensesCreated                    Expense[]                   @relation("ExpenseCreatedBy")
+  expensesApproved                   Expense[]                   @relation("ExpenseApprovedBy")
+  expensesCancelled                  Expense[]                   @relation("ExpenseCancelledBy")
+  expensePaymentAllocationsCreated   ExpensePaymentAllocation[]  @relation("ExpensePaymentAllocationCreatedBy")
+  expensePaymentAllocationsReversed  ExpensePaymentAllocation[]  @relation("ExpensePaymentAllocationReversedBy")
+  purchaseCostAllocationLinesCreated PurchaseCostAllocationLine[] @relation("PurchaseCostAllocationLineCreatedBy")
+  purchaseCostPaymentAllocationsCreated PurchaseCostPaymentAllocation[] @relation("PurchaseCostPaymentAllocationCreatedBy")
+  purchaseCostPaymentAllocationsReversed PurchaseCostPaymentAllocation[] @relation("PurchaseCostPaymentAllocationReversedBy")
+  ledgerAccountsCreated              LedgerAccount[]             @relation("LedgerAccountCreatedBy")
+  ledgerAccountsArchived             LedgerAccount[]             @relation("LedgerAccountArchivedBy")
+  journalEntriesCreated              JournalEntry[]              @relation("JournalEntryCreatedBy")
+  journalEntriesPosted               JournalEntry[]              @relation("JournalEntryPostedBy")
+  journalEntriesReversed             JournalEntry[]              @relation("JournalEntryReversedBy")
+  journalEntriesCancelled            JournalEntry[]              @relation("JournalEntryCancelledBy")
 
   @@index([status])
   @@map("users")
@@ -965,6 +1093,7 @@ model Company {
   inventoryReservations       InventoryReservation[]
   inventoryCostLayers         InventoryCostLayer[]
   inventoryLayerConsumptions  InventoryLayerConsumption[]
+  inventoryCostComponents     InventoryCostComponent[]
   financialAccounts                 FinancialAccount[]
   financialAccountMovements         FinancialAccountMovement[]
   financialAccountTransfers         FinancialAccountTransfer[]
@@ -991,6 +1120,16 @@ model Company {
   paymentSequence                   PaymentSequence?
   receipts                          Receipt[]
   receiptSequence                   ReceiptSequence?
+  expenseCategories                 ExpenseCategory[]
+  expenses                          Expense[]
+  expenseSequence                   ExpenseSequence?
+  expensePaymentAllocations         ExpensePaymentAllocation[]
+  purchaseCostAllocationLines       PurchaseCostAllocationLine[]
+  purchaseCostPaymentAllocations    PurchaseCostPaymentAllocation[]
+  ledgerAccounts                    LedgerAccount[]
+  journalEntries                    JournalEntry[]
+  journalEntrySequence              JournalEntrySequence?
+  journalLines                      JournalLine[]
 
   @@index([status])
   @@map("companies")
@@ -1814,7 +1953,7 @@ model PurchaseOrder {
   @@map("purchase_orders")
 }
 
-/// PO-level commercial acquisition cost (Phase 2.8). Not paid/payable state; not allocated to stock.
+/// PO-level commercial acquisition cost (Phase 2.8). Phase 4.7 adds financial treatment + allocation.
 model PurchaseOrderCost {
   id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId       String @map("company_id") @db.Uuid
@@ -1840,6 +1979,15 @@ model PurchaseOrderCost {
   /// Optional link when the PO supplier charged this cost. Never required.
   supplierId String? @map("supplier_id") @db.Uuid
 
+  /// Phase 4.7 — null until financialized; immutable once set (except explicit correction path).
+  treatment        PurchaseCostTreatment? @map("treatment")
+  treatmentSetAt   DateTime?              @map("treatment_set_at") @db.Timestamptz(3)
+  treatmentSetById String?                @map("treatment_set_by_id") @db.Uuid
+  /// Linked Expense ONLY when treatment=PERIOD_EXPENSE (FIN-EXP-012).
+  expenseId        String?                @map("expense_id") @db.Uuid
+  financializedAt  DateTime?              @map("financialized_at") @db.Timestamptz(3)
+  allocatedAt      DateTime?              @map("allocated_at") @db.Timestamptz(3)
+
   createdById String  @map("created_by_id") @db.Uuid
   voidedById  String? @map("voided_by_id") @db.Uuid
   voidReason  String? @map("void_reason")
@@ -1853,11 +2001,18 @@ model PurchaseOrderCost {
   supplier      Supplier?     @relation(fields: [supplierId, companyId], references: [id, companyId], onDelete: Restrict)
   createdBy     User          @relation("PurchaseOrderCostCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   voidedBy      User?         @relation("PurchaseOrderCostVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+  treatmentSetBy User?        @relation("PurchaseOrderCostTreatmentSetBy", fields: [treatmentSetById], references: [id], onDelete: Restrict)
+  expense       Expense?      @relation(fields: [expenseId, companyId], references: [id, companyId], onDelete: Restrict)
+  allocationLines PurchaseCostAllocationLine[]
+  paymentAllocations PurchaseCostPaymentAllocation[]
 
   @@unique([id, companyId])
+  /// Partial unique (expense_id IS NOT NULL) enforced in migration SQL.
+  @@index([companyId, expenseId])
   @@index([companyId, purchaseOrderId, status])
   @@index([companyId, costDate])
   @@index([companyId, type, status])
+  @@index([companyId, treatment])
   @@map("purchase_order_costs")
 }
 
@@ -3332,6 +3487,7 @@ model InventoryCostLayer {
   parentLayer InventoryCostLayer?  @relation("InventoryCostLayerParent", fields: [parentLayerId, companyId], references: [id, companyId], onDelete: Restrict)
   childLayers InventoryCostLayer[] @relation("InventoryCostLayerParent")
   consumptions InventoryLayerConsumption[]
+  costComponents InventoryCostComponent[]
 
   @@unique([id, companyId])
   @@unique([companyId, sourceType, sourceLineId])
@@ -3342,6 +3498,35 @@ model InventoryCostLayer {
   @@index([companyId, parentLayerId])
   @@index([companyId, valuationStatus])
   @@map("inventory_cost_layers")
+}
+
+/// Immutable acquisition-cost component provenance on a FIFO layer (Phase 4.7).
+/// Quantity never lives here — only money attribution (FIN-EXP-016 / FIN-EXP-019).
+model InventoryCostComponent {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  layerId   String @map("layer_id") @db.Uuid
+
+  sourceType InventoryCostComponentSourceType @map("source_type")
+  sourceId   String                           @map("source_id") @db.Uuid
+  costType   PurchaseCostType                 @map("cost_type")
+
+  allocatedAmount Decimal      @map("allocated_amount") @db.Decimal(24, 6)
+  currency        CurrencyCode
+  /// Optional company-base amount when FX applied at capitalization time.
+  baseAmount      Decimal?     @map("base_amount") @db.Decimal(24, 6)
+  appliedFxRate   Decimal?     @map("applied_fx_rate") @db.Decimal(24, 8)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  layer   InventoryCostLayer @relation(fields: [layerId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, layerId, sourceType, sourceId])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, layerId])
+  @@map("inventory_cost_components")
 }
 
 /// Immutable trace of quantity leaving a cost layer (paired with InventoryMovement).
@@ -3412,6 +3597,9 @@ model FinancialAccount {
   fxConversionsAsFee         FxConversion[] @relation("FxConversionFeeAccount")
   payments                   Payment[]
   receipts                   Receipt[]
+  /// Phase 4.8 — optional CoA mapping for cash/bank journal lines.
+  ledgerAccountId String?        @map("ledger_account_id") @db.Uuid
+  ledgerAccount   LedgerAccount? @relation(fields: [ledgerAccountId, companyId], references: [id, companyId], onDelete: Restrict)
 
   @@unique([id, companyId])
   @@unique([companyId, code])
@@ -3420,6 +3608,7 @@ model FinancialAccount {
   @@index([companyId, type])
   @@index([companyId, isDefault])
   @@index([companyId, name])
+  @@index([companyId, ledgerAccountId])
   @@map("financial_accounts")
 }
 
@@ -3881,27 +4070,52 @@ model SupplierCredit {
   @@map("supplier_credits")
 }
 
+/// Explicit Payment ↔ SupplierPayable settlement (FIN-SET-002). Soft paymentSource* retained for legacy.
 model SupplierPaymentAllocation {
-  id                String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId         String                           @map("company_id") @db.Uuid
-  payableId         String                           @map("payable_id") @db.Uuid
-  amount            Decimal                          @db.Decimal(24, 6)
-  currency          CurrencyCode
-  paymentSourceType String?                          @map("payment_source_type")
-  paymentSourceId   String?                          @map("payment_source_id") @db.Uuid
-  requestId         String?                          @map("request_id") @db.Uuid
-  status            SupplierPaymentAllocationStatus  @default(POSTED)
-  effectiveAt       DateTime                         @map("effective_at") @db.Timestamptz(3)
-  createdById       String                           @map("created_by_id") @db.Uuid
-  createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                           String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                    String                          @map("company_id") @db.Uuid
+  payableId                    String                          @map("payable_id") @db.Uuid
+  /// Liability-currency amount settled (canonical decrease).
+  amount                       Decimal                         @db.Decimal(24, 6)
+  currency                     CurrencyCode
+  /// Hard FK to POSTED Payment (nullable for legacy liability-only admin allocations).
+  paymentId                    String?                         @map("payment_id") @db.Uuid
+  /// Legacy soft link (Phase 4.4/4.6 foundation). Prefer paymentId.
+  paymentSourceType            String?                         @map("payment_source_type")
+  paymentSourceId              String?                         @map("payment_source_id") @db.Uuid
+  paymentCurrency              CurrencyCode                    @map("payment_currency")
+  paymentAmountApplied         Decimal                         @map("payment_amount_applied") @db.Decimal(24, 6)
+  liabilityAmountSettled       Decimal                         @map("liability_amount_settled") @db.Decimal(24, 6)
+  settlementRate               Decimal?                        @map("settlement_rate") @db.Decimal(24, 8)
+  settlementRateBaseCurrency   CurrencyCode?                   @map("settlement_rate_base_currency")
+  settlementRateQuoteCurrency  CurrencyCode?                   @map("settlement_rate_quote_currency")
+  settlementFxRateId           String?                         @map("settlement_fx_rate_id") @db.Uuid
+  baseCarryingAmount           Decimal?                        @map("base_carrying_amount") @db.Decimal(24, 6)
+  basePaymentAmount            Decimal?                        @map("base_payment_amount") @db.Decimal(24, 6)
+  /// paymentBase − carryingBase (positive → FX loss; negative → FX gain).
+  fxDifferenceBase             Decimal?                        @map("fx_difference_base") @db.Decimal(24, 6)
+  /// Groups multi-liability settle lines from one API call.
+  settlementGroupId            String?                         @map("settlement_group_id") @db.Uuid
+  requestId                    String?                         @map("request_id") @db.Uuid
+  status                       SupplierPaymentAllocationStatus @default(POSTED)
+  effectiveAt                  DateTime                        @map("effective_at") @db.Timestamptz(3)
+  createdById                  String                          @map("created_by_id") @db.Uuid
+  reversedAt                   DateTime?                       @map("reversed_at") @db.Timestamptz(3)
+  reversedById                 String?                         @map("reversed_by_id") @db.Uuid
+  createdAt                    DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  payable   SupplierPayable @relation(fields: [payableId, companyId], references: [id, companyId], onDelete: Restrict)
-  createdBy User            @relation("SupplierPaymentAllocationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  payable          SupplierPayable @relation(fields: [payableId, companyId], references: [id, companyId], onDelete: Restrict)
+  payment          Payment?        @relation(fields: [paymentId, companyId], references: [id, companyId], onDelete: Restrict)
+  settlementFxRate FxRate?         @relation(fields: [settlementFxRateId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy        User            @relation("SupplierPaymentAllocationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  reversedBy       User?           @relation("SupplierPaymentAllocationReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
 
   @@unique([id, companyId])
   @@index([companyId, payableId])
+  @@index([companyId, paymentId, status])
   @@index([companyId, requestId])
+  @@index([companyId, settlementGroupId])
   @@map("supplier_payment_allocations")
 }
 
@@ -3927,9 +4141,10 @@ model FxRate {
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdBy    User           @relation("FxRateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  company      Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy    User                        @relation("FxRateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   conversions  FxConversion[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
 
   @@unique([id, companyId])
   @@index([companyId, baseCurrency, quoteCurrency, rateType, effectiveAt(sort: Desc)])
@@ -4013,7 +4228,7 @@ model PaymentSequence {
   @@map("payment_sequences")
 }
 
-/// Standalone money-out. purposeType=SUPPLIER does NOT settle SupplierPayable (Phase 4.9).
+/// Standalone money-out. purposeType=SUPPLIER does NOT auto-settle SupplierPayable (FIN-SET-001).
 model Payment {
   id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId             String              @map("company_id") @db.Uuid
@@ -4052,6 +4267,9 @@ model Payment {
   reversedBy  User?            @relation("PaymentReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
   reversalOf  Payment?         @relation("PaymentReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
   reversals   Payment[]        @relation("PaymentReversal")
+  expensePaymentAllocations ExpensePaymentAllocation[]
+  purchaseCostPaymentAllocations PurchaseCostPaymentAllocation[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
 
   @@unique([id, companyId])
   @@unique([companyId, number])
@@ -4122,4 +4340,297 @@ model Receipt {
   @@index([companyId, reversalOfId])
   @@index([companyId, requestId])
   @@map("receipts")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.7 — Expenses + Purchase Cost financialization
+// Expense = economic cost (not cash). Payment allocation settles Expense.
+// CAPITALIZABLE purchase costs update FIFO valuation; PERIOD_EXPENSE links Expense.
+// ---------------------------------------------------------------------------
+
+model ExpenseCategory {
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String                @map("company_id") @db.Uuid
+  code        String
+  name        String
+  status      ExpenseCategoryStatus @default(ACTIVE)
+  description String?
+  isSystem    Boolean               @default(false) @map("is_system")
+  createdById String?               @map("created_by_id") @db.Uuid
+  archivedAt  DateTime?             @map("archived_at") @db.Timestamptz(3)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy       User?          @relation("ExpenseCategoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  expenses        Expense[]
+  /// Phase 4.8 — expense P&L ledger account for recognition journals.
+  ledgerAccountId String?        @map("ledger_account_id") @db.Uuid
+  ledgerAccount   LedgerAccount? @relation(fields: [ledgerAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([companyId, ledgerAccountId])
+  @@map("expense_categories")
+}
+
+model ExpenseSequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("expense_sequences")
+}
+
+model Expense {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String               @map("company_id") @db.Uuid
+  number           String
+  categoryId       String               @map("category_id") @db.Uuid
+  amount           Decimal              @db.Decimal(24, 6)
+  currency         CurrencyCode
+  expenseDate      DateTime             @map("expense_date") @db.Timestamptz(3)
+  dueDate          DateTime?            @map("due_date") @db.Timestamptz(3)
+  counterpartyType FinanceCounterpartyType? @map("counterparty_type")
+  counterpartyId   String?              @map("counterparty_id") @db.Uuid
+  counterpartyName String?              @map("counterparty_name")
+  description      String
+  reference        String?
+  notes            String?
+  status           ExpenseStatus        @default(DRAFT)
+  paymentStatus    ExpensePaymentStatus @default(UNPAID) @map("payment_status")
+  sourceType       ExpenseSourceType    @default(MANUAL) @map("source_type")
+  sourceId         String?              @map("source_id") @db.Uuid
+  requestId        String?              @map("request_id") @db.Uuid
+  createdById      String               @map("created_by_id") @db.Uuid
+  approvedAt       DateTime?            @map("approved_at") @db.Timestamptz(3)
+  approvedById     String?              @map("approved_by_id") @db.Uuid
+  cancelledAt      DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById    String?              @map("cancelled_by_id") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category    ExpenseCategory @relation(fields: [categoryId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy   User            @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy  User?           @relation("ExpenseApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  cancelledBy User?           @relation("ExpenseCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  paymentAllocations ExpensePaymentAllocation[]
+  purchaseOrderCosts PurchaseOrderCost[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  /// Partial unique (source_id IS NOT NULL) enforced in migration SQL.
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, status, expenseDate])
+  @@index([companyId, paymentStatus])
+  @@index([companyId, categoryId])
+  @@index([companyId, currency, expenseDate])
+  @@index([companyId, requestId])
+  @@map("expenses")
+}
+
+model ExpensePaymentAllocation {
+  id          String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String                          @map("company_id") @db.Uuid
+  expenseId   String                          @map("expense_id") @db.Uuid
+  paymentId   String                          @map("payment_id") @db.Uuid
+  amount      Decimal                         @db.Decimal(24, 6)
+  currency    CurrencyCode
+  status      ExpensePaymentAllocationStatus  @default(ACTIVE)
+  requestId   String?                         @map("request_id") @db.Uuid
+  createdById String                          @map("created_by_id") @db.Uuid
+  reversedAt  DateTime?                       @map("reversed_at") @db.Timestamptz(3)
+  reversedById String?                        @map("reversed_by_id") @db.Uuid
+  createdAt   DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  expense   Expense  @relation(fields: [expenseId, companyId], references: [id, companyId], onDelete: Restrict)
+  payment   Payment  @relation(fields: [paymentId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy User     @relation("ExpensePaymentAllocationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  reversedBy User?   @relation("ExpensePaymentAllocationReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, expenseId, status])
+  @@index([companyId, paymentId, status])
+  @@index([companyId, requestId])
+  @@map("expense_payment_allocations")
+}
+
+model PurchaseCostAllocationLine {
+  id                 String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String                           @map("company_id") @db.Uuid
+  purchaseOrderCostId String                          @map("purchase_order_cost_id") @db.Uuid
+  targetType         PurchaseCostAllocationTargetType @map("target_type")
+  targetId           String                           @map("target_id") @db.Uuid
+  allocatedAmount    Decimal                          @map("allocated_amount") @db.Decimal(24, 6)
+  currency           CurrencyCode
+  createdById        String                           @map("created_by_id") @db.Uuid
+  createdAt          DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrderCost PurchaseOrderCost @relation(fields: [purchaseOrderCostId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy         User              @relation("PurchaseCostAllocationLineCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@unique([companyId, purchaseOrderCostId, targetType, targetId])
+  @@index([companyId, purchaseOrderCostId])
+  @@index([companyId, targetType, targetId])
+  @@map("purchase_cost_allocation_lines")
+}
+
+/// Soft payment tracking for CAPITALIZABLE costs (no Expense row). PERIOD_EXPENSE pays via Expense.
+model PurchaseCostPaymentAllocation {
+  id                  String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String                             @map("company_id") @db.Uuid
+  purchaseOrderCostId String                             @map("purchase_order_cost_id") @db.Uuid
+  paymentId           String                             @map("payment_id") @db.Uuid
+  amount              Decimal                            @db.Decimal(24, 6)
+  currency            CurrencyCode
+  status              PurchaseCostPaymentAllocationStatus @default(ACTIVE)
+  requestId           String?                            @map("request_id") @db.Uuid
+  createdById         String                             @map("created_by_id") @db.Uuid
+  reversedAt          DateTime?                          @map("reversed_at") @db.Timestamptz(3)
+  reversedById        String?                            @map("reversed_by_id") @db.Uuid
+  createdAt           DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrderCost PurchaseOrderCost @relation(fields: [purchaseOrderCostId, companyId], references: [id, companyId], onDelete: Restrict)
+  payment           Payment           @relation(fields: [paymentId, companyId], references: [id, companyId], onDelete: Restrict)
+  createdBy         User              @relation("PurchaseCostPaymentAllocationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  reversedBy        User?             @relation("PurchaseCostPaymentAllocationReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, purchaseOrderCostId, status])
+  @@index([companyId, paymentId, status])
+  @@index([companyId, requestId])
+  @@map("purchase_cost_payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.8 — Financial Ledger + Journal Foundation
+// Operational ≠ AccountMovement ≠ Journal. Journals balance in Company.baseCurrency.
+// Manual journal never creates AccountMovement / never mutates Warehouse / AP ops.
+// ---------------------------------------------------------------------------
+
+model LedgerAccount {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String              @map("company_id") @db.Uuid
+  code        String
+  name        String
+  type        LedgerAccountType
+  /// Stable system CoA key (CASH_AND_BANK, INVENTORY, …). Null for user-defined.
+  systemKey   String?             @map("system_key")
+  kind        LedgerAccountKind   @default(USER_DEFINED)
+  status      LedgerAccountStatus @default(ACTIVE)
+  parentId    String?             @map("parent_id") @db.Uuid
+  description String?
+  createdById String?             @map("created_by_id") @db.Uuid
+  archivedAt  DateTime?           @map("archived_at") @db.Timestamptz(3)
+  archivedById String?            @map("archived_by_id") @db.Uuid
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company            Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  parent             LedgerAccount?   @relation("LedgerAccountHierarchy", fields: [parentId, companyId], references: [id, companyId], onDelete: Restrict)
+  children           LedgerAccount[]  @relation("LedgerAccountHierarchy")
+  createdBy          User?            @relation("LedgerAccountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  archivedBy         User?            @relation("LedgerAccountArchivedBy", fields: [archivedById], references: [id], onDelete: Restrict)
+  journalLines       JournalLine[]
+  financialAccounts  FinancialAccount[]
+  expenseCategories  ExpenseCategory[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, code])
+  /// Partial unique (system_key IS NOT NULL) enforced in migration SQL.
+  @@index([companyId, systemKey])
+  @@index([companyId, type, status])
+  @@index([companyId, parentId])
+  @@index([companyId, status])
+  @@map("ledger_accounts")
+}
+
+model JournalEntrySequence {
+  companyId String @id @map("company_id") @db.Uuid
+  nextValue Int    @default(1) @map("next_value")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("journal_entry_sequences")
+}
+
+model JournalEntry {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String             @map("company_id") @db.Uuid
+  number           String
+  status           JournalEntryStatus @default(DRAFT)
+  effectiveAt      DateTime           @map("effective_at") @db.Timestamptz(3)
+  description      String
+  reference        String?
+  /// Provenance key (CAPITAL_CONTRIBUTION, EXPENSE, MANUAL_JOURNAL, …).
+  sourceType       String             @map("source_type")
+  sourceId         String?            @map("source_id") @db.Uuid
+  /// Effect discriminator (EXPENSE_RECOGNITION, CAPITAL_POST, …).
+  effectType       String             @map("effect_type")
+  baseCurrency     CurrencyCode       @map("base_currency")
+  totalDebitBase   Decimal            @map("total_debit_base") @db.Decimal(24, 6)
+  totalCreditBase  Decimal            @map("total_credit_base") @db.Decimal(24, 6)
+  reversalOfId     String?            @map("reversal_of_id") @db.Uuid
+  requestId        String?            @map("request_id") @db.Uuid
+  createdById      String             @map("created_by_id") @db.Uuid
+  postedAt         DateTime?          @map("posted_at") @db.Timestamptz(3)
+  postedById       String?            @map("posted_by_id") @db.Uuid
+  reversedAt       DateTime?          @map("reversed_at") @db.Timestamptz(3)
+  reversedById     String?            @map("reversed_by_id") @db.Uuid
+  cancelledAt      DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById    String?            @map("cancelled_by_id") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy   User          @relation("JournalEntryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedBy    User?         @relation("JournalEntryPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  reversedBy  User?         @relation("JournalEntryReversedBy", fields: [reversedById], references: [id], onDelete: Restrict)
+  cancelledBy User?         @relation("JournalEntryCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  reversalOf  JournalEntry? @relation("JournalEntryReversal", fields: [reversalOfId, companyId], references: [id, companyId], onDelete: Restrict)
+  reversals   JournalEntry[] @relation("JournalEntryReversal")
+  lines       JournalLine[]
+
+  @@unique([id, companyId])
+  @@unique([companyId, number])
+  /// Partial unique for automatic source effects + requestId enforced in migration SQL.
+  @@index([companyId, sourceType, sourceId, effectType])
+  @@index([companyId, status, effectiveAt])
+  @@index([companyId, reversalOfId])
+  @@index([companyId, requestId])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String               @map("company_id") @db.Uuid
+  journalEntryId   String               @map("journal_entry_id") @db.Uuid
+  ledgerAccountId  String               @map("ledger_account_id") @db.Uuid
+  direction        JournalLineDirection
+  originalAmount   Decimal              @map("original_amount") @db.Decimal(24, 6)
+  originalCurrency CurrencyCode         @map("original_currency")
+  baseAmount       Decimal              @map("base_amount") @db.Decimal(24, 6)
+  baseCurrency     CurrencyCode         @map("base_currency")
+  fxRate           Decimal?             @map("fx_rate") @db.Decimal(24, 8)
+  fxRateSource     String?              @map("fx_rate_source")
+  description      String?
+  lineOrder        Int                  @default(0) @map("line_order")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  journalEntry  JournalEntry  @relation(fields: [journalEntryId, companyId], references: [id, companyId], onDelete: Restrict)
+  ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@unique([id, companyId])
+  @@index([companyId, journalEntryId])
+  @@index([companyId, ledgerAccountId])
+  @@index([companyId, ledgerAccountId, createdAt])
+  @@map("journal_lines")
 }

@@ -20,7 +20,8 @@ import {
 } from '@/lib/api/hector';
 import { isApiClientError } from '@/lib/api/errors';
 import { PERMISSIONS } from '@/lib/permissions/keys';
-import { financeReceiptKeys } from '@/lib/query/keys';
+import { financeDashboardKeys, financeReceiptKeys } from '@/lib/query/keys';
+import { FinanceEntityHistory } from '@/features/finance/finance-entity-history';
 import { cn } from '@/lib/utils/cn';
 import { ROUTES } from '@/lib/utils/routes';
 import { useSession } from '@/providers/app-providers';
@@ -42,6 +43,7 @@ export function ReceiptDetailPageClient({ receiptId }: { receiptId: string }) {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: financeReceiptKeys.all(companyId) });
+    void queryClient.invalidateQueries({ queryKey: financeDashboardKeys.all(companyId) });
   };
 
   const postMutation = useMutation({
@@ -181,6 +183,7 @@ export function ReceiptDetailPageClient({ receiptId }: { receiptId: string }) {
           </Button>
         </div>
       ) : null}
+      <FinanceEntityHistory entityType="RECEIPT" entityId={receiptId} />
     </div>
   );
 }

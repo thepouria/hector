@@ -1,4 +1,9 @@
-import { Prisma, SupplierPayableStatus } from '@hector/database';
+import {
+  Prisma,
+  SupplierLiabilityMovementDirection,
+  SupplierLiabilityMovementType,
+  SupplierPayableStatus,
+} from '@hector/database';
 
 export type PayableTotals = {
   recognized: Prisma.Decimal;
@@ -23,6 +28,37 @@ export function derivePayableTotals(input: {
   );
   const outstanding = recognized.minus(decreased);
   return { recognized, decreased, outstanding };
+}
+
+/**
+ * Movement-aware totals (Phase 4.9): REVERSAL INCREASE undoes a prior decrease
+ * and must not inflate recognized purchase liability.
+ */
+export function derivePayableTotalsFromMovements(
+  movements: Array<{
+    direction: SupplierLiabilityMovementDirection;
+    amount: Prisma.Decimal;
+    type: SupplierLiabilityMovementType;
+  }>,
+): PayableTotals {
+  let recognized = new Prisma.Decimal(0);
+  let decreased = new Prisma.Decimal(0);
+  for (const m of movements) {
+    if (m.direction === SupplierLiabilityMovementDirection.INCREASE) {
+      if (m.type === SupplierLiabilityMovementType.REVERSAL) {
+        decreased = decreased.minus(m.amount);
+      } else {
+        recognized = recognized.plus(m.amount);
+      }
+    } else {
+      decreased = decreased.plus(m.amount);
+    }
+  }
+  return {
+    recognized,
+    decreased,
+    outstanding: recognized.minus(decreased),
+  };
 }
 
 /**

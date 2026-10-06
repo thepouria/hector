@@ -37,6 +37,15 @@ import {
 import { assertOptionalText, normalizeSearchQuery } from './finance-accounts.normalization';
 import { parseMoneyAmount } from './money/money';
 import { allocatePaymentSequence, formatPaymentNumber } from './payment-numbering';
+import { reversePaymentSettlementLinksInTx } from './expense-payment-settlement';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import { postPaymentClearingJournalInTx } from './journal-builders';
+import {
+  JOURNAL_EFFECT_TYPES,
+  JOURNAL_SOURCE_TYPES,
+} from './finance-journals.constants';
+import { SettlementService } from './settlement.service';
 import type {
   CreatePaymentDto,
   ListPaymentsQueryDto,
@@ -61,6 +70,9 @@ export class PaymentsService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly journalPosting: JournalPostingService,
+    private readonly ledgerAccounts: LedgerAccountsService,
+    private readonly settlementService: SettlementService,
   ) {}
 
   async list(
@@ -533,6 +545,42 @@ export class PaymentsService {
           include: detailInclude,
         });
 
+        // FIN-SET-010: reverse supplier settlements first, then expense links, then payment clearing.
+        await this.settlementService.reverseForPaymentInTx(tx, {
+          companyId: company.companyId,
+          paymentId: locked.id,
+          actorUserId,
+          now,
+        });
+
+        await reversePaymentSettlementLinksInTx(tx, {
+          companyId: company.companyId,
+          paymentId: locked.id,
+          actorUserId,
+          now,
+        });
+
+        const allocs = await tx.expensePaymentAllocation.findMany({
+          where: { companyId: company.companyId, paymentId: locked.id },
+          select: { id: true },
+        });
+        for (const alloc of allocs) {
+          await this.journalPosting.reverseBySourceInTx(tx, {
+            companyId: company.companyId,
+            actorUserId,
+            sourceType: JOURNAL_SOURCE_TYPES.EXPENSE_PAYMENT_ALLOCATION,
+            sourceId: alloc.id,
+            effectType: JOURNAL_EFFECT_TYPES.EXPENSE_SETTLEMENT,
+          });
+        }
+        await this.journalPosting.reverseBySourceInTx(tx, {
+          companyId: company.companyId,
+          actorUserId,
+          sourceType: JOURNAL_SOURCE_TYPES.PAYMENT,
+          sourceId: locked.id,
+          effectType: JOURNAL_EFFECT_TYPES.PAYMENT_CLEARING,
+        });
+
         await this.auditService.record(tx, {
           action: AUDIT_ACTIONS.PAYMENT_REVERSED,
           entityType: AUDIT_ENTITY_TYPES.PAYMENT,
@@ -604,6 +652,22 @@ export class PaymentsService {
         },
       ],
     });
+
+    // Journal: never Expense/Revenue — unclassified clearing only (FIN-JRN).
+    await postPaymentClearingJournalInTx(
+      tx,
+      { journals: this.journalPosting, ledger: this.ledgerAccounts },
+      {
+        companyId,
+        actorUserId,
+        paymentId: locked.id,
+        accountId: locked.accountId,
+        amount: locked.amount,
+        currency: locked.currency,
+        effectiveAt: locked.effectiveAt,
+        number: locked.number,
+      },
+    );
 
     const updated = await tx.payment.update({
       where: { id: locked.id },

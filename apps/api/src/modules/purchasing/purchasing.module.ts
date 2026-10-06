@@ -1,12 +1,14 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CatalogModule } from '../catalog/catalog.module';
 import { AuditModule } from '../audit/audit.module';
+import { FinanceModule } from '../finance/finance.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { PurchaseReceivingContract } from './contracts/purchase-receiving.contract';
 import { PurchaseReceivingService } from './contracts/purchase-receiving.service';
 import { PurchaseDiscrepanciesService } from './purchase-discrepancies.service';
 import { PurchaseOrderCorrectionsController } from './purchase-order-corrections.controller';
 import { PurchaseOrderCorrectionsService } from './purchase-order-corrections.service';
+import { PurchaseOrderCostFinanceService } from './purchase-order-cost-finance.service';
 import { PurchaseOrderCostsController } from './purchase-order-costs.controller';
 import { PurchaseOrderCostsService } from './purchase-order-costs.service';
 import { PurchaseOrdersController } from './purchase-orders.controller';
@@ -28,9 +30,15 @@ import { SuppliersService } from './suppliers.service';
  * Phase 2.2–2.11: Supplier → PO → Lifecycle → Receiving Contract → Returns/Corrections
  * Phase 2.12: Purchasing API consolidation (HTTP boundary; domain rules stay in services)
  * Phase 2.14: Purchase Dashboard read model
+ * Phase 4.7: Purchase cost treatment + allocation (imports Finance for PERIOD_EXPENSE)
  */
 @Module({
-  imports: [AuditModule, CatalogModule, forwardRef(() => RbacModule)],
+  imports: [
+    AuditModule,
+    CatalogModule,
+    FinanceModule,
+    forwardRef(() => RbacModule),
+  ],
   controllers: [
     PurchasingController,
     SuppliersController,
@@ -49,6 +57,7 @@ import { SuppliersService } from './suppliers.service';
     SupplierOffersService,
     PurchaseOrdersService,
     PurchaseOrderCostsService,
+    PurchaseOrderCostFinanceService,
     PurchaseOrderCorrectionsService,
     PurchaseDiscrepanciesService,
     PurchaseReturnsService,
@@ -62,6 +71,7 @@ import { SuppliersService } from './suppliers.service';
     SupplierOffersService,
     PurchaseOrdersService,
     PurchaseOrderCostsService,
+    PurchaseOrderCostFinanceService,
     PurchaseOrderCorrectionsService,
     PurchaseDiscrepanciesService,
     PurchaseReturnsService,

@@ -292,6 +292,10 @@ export type PurchaseOrderCost = {
   reference: string | null;
   notes: string | null;
   allocationMethod: PurchaseCostAllocationMethod;
+  treatment: 'CAPITALIZABLE' | 'PERIOD_EXPENSE' | null;
+  expenseId: string | null;
+  financializedAt: string | null;
+  allocatedAt: string | null;
   supplierId: string | null;
   supplier: { id: string; name: string; code: string | null } | null;
   createdBy: PurchaseOrderUserRef;

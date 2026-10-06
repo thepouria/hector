@@ -64,7 +64,10 @@ export const SUPPLIER_PAYABLE_RECOGNITION = {
   orderedOnlyCreatesPayable: false,
 } as const;
 
-/** Planned / emitted Finance domain event names. */
+/** Planned / emitted Finance domain event names.
+ * Keep in sync with `DOMAIN_EVENTS` finance.* keys in domain-events.registry.ts.
+ * Delivery is in-process DomainEventBus after commit (no durable outbox / Kafka in Phase 4).
+ */
 export const FINANCE_DOMAIN_EVENT_TYPES = {
   FINANCIAL_ACCOUNT_CREATED: 'finance.account.created',
   FINANCIAL_ACCOUNT_UPDATED: 'finance.account.updated',
@@ -77,10 +80,12 @@ export const FINANCE_DOMAIN_EVENT_TYPES = {
   ACCOUNT_TRANSFER_POSTED: 'finance.account_transfer.posted',
   ACCOUNT_TRANSFER_CANCELLED: 'finance.account_transfer.cancelled',
   ACCOUNT_TRANSFER_REVERSED: 'finance.account_transfer.reversed',
+  /** @deprecated Prefer ACCOUNT_TRANSFER_POSTED — kept as alias documentation. */
   ACCOUNT_TRANSFER_COMPLETED: 'finance.account_transfer.completed',
   CAPITAL_INJECTED: 'finance.capital.injected',
   CAPITAL_CONTRIBUTION_REVERSED: 'finance.capital.reversed',
   LOAN_CREATED: 'finance.loan.created',
+  /** @deprecated Prefer LOAN_DISBURSED. */
   LOAN_RECEIVED: 'finance.loan.received',
   LOAN_DISBURSED: 'finance.loan.disbursed',
   LOAN_REPAID: 'finance.loan.repaid',
@@ -92,11 +97,26 @@ export const FINANCE_DOMAIN_EVENT_TYPES = {
   SUPPLIER_PAYABLE_SETTLED: 'finance.payable.settled',
   SUPPLIER_PAYABLE_OPENING_RECORDED: 'finance.payable.opening_recorded',
   SUPPLIER_PAYABLE_ALLOCATION_POSTED: 'finance.payable.allocation_posted',
+  SUPPLIER_PAYABLE_SETTLEMENT_POSTED: 'finance.payable.settlement_posted',
+  SUPPLIER_PAYABLE_SETTLEMENT_REVERSED: 'finance.payable.settlement_reversed',
   SUPPLIER_CREDIT_CREATED: 'finance.payable.credit_created',
   SUPPLIER_PAYMENT_RECORDED: 'finance.payment.recorded',
+  /** @deprecated Conceptual alias — use RECEIPT_POSTED / PAYMENT_POSTED. */
   MONEY_RECEIVED: 'finance.money.received',
+  /** @deprecated Conceptual alias — use PAYMENT_POSTED. */
   MONEY_PAID: 'finance.money.paid',
+  /** @deprecated Prefer EXPENSE_CREATED / EXPENSE_APPROVED. */
   EXPENSE_RECORDED: 'finance.expense.recorded',
+  EXPENSE_CATEGORY_CREATED: 'finance.expense.category_created',
+  EXPENSE_CATEGORY_ARCHIVED: 'finance.expense.category_archived',
+  EXPENSE_CREATED: 'finance.expense.created',
+  EXPENSE_APPROVED: 'finance.expense.approved',
+  EXPENSE_CANCELLED: 'finance.expense.cancelled',
+  EXPENSE_PAYMENT_ALLOCATED: 'finance.expense.payment_allocated',
+  EXPENSE_PAID: 'finance.expense.paid',
+  PURCHASE_COST_TREATMENT_SET: 'finance.purchase_cost.treatment_set',
+  PURCHASE_COST_ALLOCATED: 'finance.purchase_cost.allocated',
+  PURCHASE_COST_CAPITALIZED: 'finance.purchase_cost.capitalized',
   JOURNAL_POSTED: 'finance.journal.posted',
   JOURNAL_REVERSED: 'finance.journal.reversed',
   FX_RATE_CREATED: 'finance.fx.rate_created',
@@ -113,4 +133,13 @@ export const FINANCE_DOMAIN_EVENT_TYPES = {
   RECEIPT_POSTED: 'finance.receipt.posted',
   RECEIPT_CANCELLED: 'finance.receipt.cancelled',
   RECEIPT_REVERSED: 'finance.receipt.reversed',
+} as const;
+
+/** Alias documentation only — not registered as separate DOMAIN_EVENTS keys. */
+export const FINANCE_DOMAIN_EVENT_DEPRECATED_ALIASES = {
+  ACCOUNT_TRANSFER_COMPLETED: FINANCE_DOMAIN_EVENT_TYPES.ACCOUNT_TRANSFER_COMPLETED,
+  LOAN_RECEIVED: FINANCE_DOMAIN_EVENT_TYPES.LOAN_RECEIVED,
+  MONEY_RECEIVED: FINANCE_DOMAIN_EVENT_TYPES.MONEY_RECEIVED,
+  MONEY_PAID: FINANCE_DOMAIN_EVENT_TYPES.MONEY_PAID,
+  EXPENSE_RECORDED: FINANCE_DOMAIN_EVENT_TYPES.EXPENSE_RECORDED,
 } as const;

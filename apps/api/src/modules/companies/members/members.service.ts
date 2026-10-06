@@ -328,7 +328,7 @@ export class MembersService {
 
         const before = buildMemberSnapshot({
           id: member.id,
-          userId: member.user.id,
+          userId: (member.user as { id: string }).id,
           status: member.status,
           roles: member.roles
             .filter((assignment) => assignment.role.deletedAt === null)
@@ -555,12 +555,20 @@ export class MembersService {
       id: member.id,
       status: member.status,
       joinedAt: member.joinedAt,
-      user: {
-        id: member.user.id,
-        email: member.user.email,
-        firstName: member.user.firstName,
-        lastName: member.user.lastName,
-      },
+      user: (() => {
+        const user = member.user as {
+          id: string;
+          email: string;
+          firstName: string;
+          lastName: string;
+        };
+        return {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        };
+      })(),
       roles: member.roles
         .filter((assignment) => assignment.role.deletedAt === null)
         .map((assignment) => ({

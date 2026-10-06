@@ -28,8 +28,8 @@ import {
   CircleDollarSign,
   ScanBarcode,
   Landmark,
-  HandCoins,
   FileSpreadsheet,
+  History,
 } from 'lucide-react';
 import { PERMISSIONS, type PermissionKey } from '@/lib/permissions/keys';
 import { ROUTES } from '@/lib/utils/routes';
@@ -255,28 +255,41 @@ export const NAVIGATION: NavGroup[] = [
     label: 'مالی',
     items: [
       {
+        label: 'داشبورد مالی',
+        href: ROUTES.finance,
+        icon: LayoutGrid,
+        permission: PERMISSIONS.FINANCE_DASHBOARD_READ,
+        exact: true,
+      },
+      {
         label: 'حساب‌ها',
         href: ROUTES.financeAccounts,
         icon: WalletCards,
         permission: PERMISSIONS.FINANCE_ACCOUNTS_READ,
       },
       {
-        label: 'سرمایه',
+        label: 'حرکت پول',
+        href: ROUTES.financeMoneyMovements,
+        icon: ArrowLeftRight,
+        permission: PERMISSIONS.FINANCE_PAYMENTS_READ,
+      },
+      {
+        label: 'بدهی‌ها',
+        href: ROUTES.financeLiabilities,
+        icon: FileSpreadsheet,
+        permission: PERMISSIONS.FINANCE_PAYABLES_READ,
+      },
+      {
+        label: 'هزینه‌ها',
+        href: ROUTES.financeExpenses,
+        icon: ReceiptText,
+        permission: PERMISSIONS.FINANCE_EXPENSES_READ,
+      },
+      {
+        label: 'سرمایه و تأمین مالی',
         href: ROUTES.financeCapital,
         icon: Landmark,
         permission: PERMISSIONS.FINANCE_CAPITAL_READ,
-      },
-      {
-        label: 'وام‌ها',
-        href: ROUTES.financeLoans,
-        icon: HandCoins,
-        permission: PERMISSIONS.FINANCE_LOANS_READ,
-      },
-      {
-        label: 'حساب‌های پرداختنی',
-        href: ROUTES.financePayables,
-        icon: FileSpreadsheet,
-        permission: PERMISSIONS.FINANCE_PAYABLES_READ,
       },
       {
         label: 'ارز / FX',
@@ -285,28 +298,16 @@ export const NAVIGATION: NavGroup[] = [
         permission: PERMISSIONS.FINANCE_FX_READ,
       },
       {
-        label: 'پرداخت‌ها',
-        href: ROUTES.financePayments,
-        icon: ArrowDownToLine,
-        permission: PERMISSIONS.FINANCE_PAYMENTS_READ,
+        label: 'حسابداری',
+        href: ROUTES.financeAccounting,
+        icon: ScrollText,
+        permission: PERMISSIONS.FINANCE_JOURNALS_READ,
       },
       {
-        label: 'دریافت‌ها',
-        href: ROUTES.financeReceipts,
-        icon: PackagePlus,
-        permission: PERMISSIONS.FINANCE_RECEIPTS_READ,
-      },
-      {
-        label: 'انتقال‌ها',
-        href: ROUTES.financeAccountTransfers,
-        icon: ArrowLeftRight,
-        permission: PERMISSIONS.FINANCE_TRANSFERS_READ,
-      },
-      {
-        label: 'تسویه‌ها',
-        href: ROUTES.settlements,
-        icon: ReceiptText,
-        placeholder: true,
+        label: 'حسابرسی مالی',
+        href: ROUTES.financeAudit,
+        icon: History,
+        permission: PERMISSIONS.FINANCE_AUDIT_READ,
       },
     ],
   },

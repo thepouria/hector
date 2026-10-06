@@ -14,8 +14,9 @@ import {
 } from '@/lib/api/hector';
 import { isApiClientError } from '@/lib/api/errors';
 import { PERMISSIONS } from '@/lib/permissions/keys';
-import { financeAccountKeys, financeLoanKeys } from '@/lib/query/keys';
+import { financeAccountKeys, financeDashboardKeys, financeLoanKeys } from '@/lib/query/keys';
 import { useSession } from '@/providers/app-providers';
+import { FinanceEntityHistory } from '@/features/finance/finance-entity-history';
 
 export function LoanDetailPageClient({ loanId }: { loanId: string }) {
   const queryClient = useQueryClient();
@@ -64,6 +65,7 @@ export function LoanDetailPageClient({ loanId }: { loanId: string }) {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: financeLoanKeys.detail(companyId, loanId) });
       await queryClient.invalidateQueries({ queryKey: financeLoanKeys.list(companyId) });
+      await queryClient.invalidateQueries({ queryKey: financeDashboardKeys.all(companyId) });
     },
     onError: (err) => {
       if (isApiClientError(err) && err.status === 401) handleUnauthorized();
@@ -182,6 +184,8 @@ export function LoanDetailPageClient({ loanId }: { loanId: string }) {
           </form>
         </section>
       ) : null}
+
+      <FinanceEntityHistory entityType="LOAN" entityId={loanId} />
     </div>
   );
 }

@@ -1,8 +1,13 @@
-import { Prisma, SupplierPayableStatus } from '@hector/database';
+import {
+  Prisma,
+  SupplierLiabilityMovementDirection,
+  SupplierLiabilityMovementType,
+  SupplierPayableStatus,
+} from '@hector/database';
 import {
   deriveAgingBucket,
   derivePayableStatus,
-  derivePayableTotals,
+  derivePayableTotalsFromMovements,
   isPayableOverdue,
   type PayableAgingBucket,
 } from '../supplier-payable-outstanding';
@@ -99,15 +104,25 @@ export function moneyString(value: Prisma.Decimal | string | number): string {
 export function buildPayableAmounts(movements: Array<{
   direction: 'INCREASE' | 'DECREASE';
   amount: Prisma.Decimal;
+  type?: string;
 }>): {
   recognized: Prisma.Decimal;
   outstanding: Prisma.Decimal;
   status: SupplierPayableStatus;
 } {
-  const totals = derivePayableTotals({
-    increases: movements.filter((m) => m.direction === 'INCREASE').map((m) => m.amount),
-    decreases: movements.filter((m) => m.direction === 'DECREASE').map((m) => m.amount),
-  });
+  const totals = derivePayableTotalsFromMovements(
+    movements.map((m) => ({
+      direction:
+        m.direction === 'DECREASE'
+          ? SupplierLiabilityMovementDirection.DECREASE
+          : SupplierLiabilityMovementDirection.INCREASE,
+      amount: m.amount,
+      type:
+        m.type === SupplierLiabilityMovementType.REVERSAL
+          ? SupplierLiabilityMovementType.REVERSAL
+          : SupplierLiabilityMovementType.PURCHASE_RECOGNITION,
+    })),
+  );
   return {
     recognized: totals.recognized,
     outstanding: totals.outstanding,

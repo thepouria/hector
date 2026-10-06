@@ -37,6 +37,12 @@ import {
 } from './capital-loan-numbering';
 import { FINANCE_ACCOUNT_SOURCE_TYPES } from './finance-accounts.constants';
 import { assertOptionalText, normalizeSearchQuery } from './finance-accounts.normalization';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import {
+  postLoanDisburseJournalInTx,
+  postLoanRepayJournalInTx,
+} from './journal-builders';
 import {
   LOAN_ERROR_MESSAGES,
   LOAN_LENDER_NAME_MAX_LENGTH,
@@ -92,6 +98,8 @@ export class LoansService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly journalPosting: JournalPostingService,
+    private readonly ledgerAccounts: LedgerAccountsService,
   ) {}
 
   async list(
@@ -1093,6 +1101,24 @@ export class LoansService {
       ],
     });
 
+    await postLoanDisburseJournalInTx(
+      tx,
+      { journals: this.journalPosting, ledger: this.ledgerAccounts },
+      {
+        companyId,
+        actorUserId,
+        disbursementId: locked.id,
+        accountId: locked.accountId,
+        amount: locked.amount,
+        currency: locked.currency,
+        effectiveAt: locked.effectiveAt,
+        number: locked.number,
+        referenceFxRate: loan.referenceFxRate,
+        referenceFxBaseCurrency: loan.referenceFxBaseCurrency,
+        referenceFxQuoteCurrency: loan.referenceFxQuoteCurrency,
+      },
+    );
+
     const updated = await tx.loanDisbursement.update({
       where: { id: locked.id },
       data: {
@@ -1248,6 +1274,25 @@ export class LoansService {
         },
       ],
     });
+
+    const loan = await tx.loan.findFirstOrThrow({ where: { id: loanId, companyId } });
+    await postLoanRepayJournalInTx(
+      tx,
+      { journals: this.journalPosting, ledger: this.ledgerAccounts },
+      {
+        companyId,
+        actorUserId,
+        repaymentId: locked.id,
+        accountId: locked.accountId,
+        principalAmount: locked.principalAmount,
+        currency: locked.currency,
+        effectiveAt: locked.effectiveAt,
+        number: locked.number,
+        referenceFxRate: loan.referenceFxRate,
+        referenceFxBaseCurrency: loan.referenceFxBaseCurrency,
+        referenceFxQuoteCurrency: loan.referenceFxQuoteCurrency,
+      },
+    );
 
     const updated = await tx.loanRepayment.update({
       where: { id: locked.id },

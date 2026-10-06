@@ -882,10 +882,17 @@ function toMovementView(row: MovementRow): InventoryMovementView {
     occurredAt: row.occurredAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     createdBy: row.createdBy
-      ? {
-          id: row.createdBy.id,
-          displayName: `${row.createdBy.firstName} ${row.createdBy.lastName}`.trim(),
-        }
+      ? (() => {
+          const createdBy = row.createdBy as {
+            id: string;
+            firstName: string;
+            lastName: string;
+          };
+          return {
+            id: createdBy.id,
+            displayName: `${createdBy.firstName} ${createdBy.lastName}`.trim(),
+          };
+        })()
       : null,
   };
 }

@@ -39,6 +39,13 @@ import {
 } from './finance-capital-loans.constants';
 import { assertOptionalText, normalizeSearchQuery } from './finance-accounts.normalization';
 import { parseMoneyAmount } from './money/money';
+import { JournalPostingService } from './journal-posting.service';
+import { LedgerAccountsService } from './ledger-accounts.service';
+import { postCapitalJournalInTx } from './journal-builders';
+import {
+  JOURNAL_EFFECT_TYPES,
+  JOURNAL_SOURCE_TYPES,
+} from './finance-journals.constants';
 import type {
   CreateCapitalContributionDto,
   ListCapitalContributionsQueryDto,
@@ -65,6 +72,8 @@ export class CapitalContributionsService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly journalPosting: JournalPostingService,
+    private readonly ledgerAccounts: LedgerAccountsService,
   ) {}
 
   async list(
@@ -507,6 +516,14 @@ export class CapitalContributionsService {
           ],
         });
 
+        await this.journalPosting.reverseBySourceInTx(tx, {
+          companyId: company.companyId,
+          actorUserId,
+          sourceType: JOURNAL_SOURCE_TYPES.CAPITAL_CONTRIBUTION,
+          sourceId: locked.id,
+          effectType: JOURNAL_EFFECT_TYPES.CAPITAL_POST,
+        });
+
         const original = await tx.capitalContribution.update({
           where: { id: locked.id },
           data: {
@@ -587,6 +604,21 @@ export class CapitalContributionsService {
         },
       ],
     });
+
+    await postCapitalJournalInTx(
+      tx,
+      { journals: this.journalPosting, ledger: this.ledgerAccounts },
+      {
+        companyId,
+        actorUserId,
+        capitalContributionId: locked.id,
+        accountId: locked.accountId,
+        amount: locked.amount,
+        currency: locked.currency,
+        effectiveAt: locked.effectiveAt,
+        number: locked.number,
+      },
+    );
 
     const updated = await tx.capitalContribution.update({
       where: { id: locked.id },

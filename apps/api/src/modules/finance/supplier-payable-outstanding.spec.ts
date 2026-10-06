@@ -1,8 +1,14 @@
-import { Prisma, SupplierPayableStatus } from '@hector/database';
+import {
+  Prisma,
+  SupplierLiabilityMovementDirection,
+  SupplierLiabilityMovementType,
+  SupplierPayableStatus,
+} from '@hector/database';
 import {
   deriveAgingBucket,
   derivePayableStatus,
   derivePayableTotals,
+  derivePayableTotalsFromMovements,
   isPayableOverdue,
 } from './supplier-payable-outstanding';
 
@@ -59,6 +65,29 @@ describe('supplier payable outstanding derivation', () => {
         now: new Date('2026-01-01'),
       }),
     ).toBe(false);
+  });
+
+  it('REVERSAL increase undoes decrease without inflating recognized', () => {
+    const totals = derivePayableTotalsFromMovements([
+      {
+        direction: SupplierLiabilityMovementDirection.INCREASE,
+        amount: new Prisma.Decimal('1000'),
+        type: SupplierLiabilityMovementType.OPENING_BALANCE,
+      },
+      {
+        direction: SupplierLiabilityMovementDirection.DECREASE,
+        amount: new Prisma.Decimal('400'),
+        type: SupplierLiabilityMovementType.PAYMENT_ALLOCATION,
+      },
+      {
+        direction: SupplierLiabilityMovementDirection.INCREASE,
+        amount: new Prisma.Decimal('400'),
+        type: SupplierLiabilityMovementType.REVERSAL,
+      },
+    ]);
+    expect(totals.recognized.toFixed()).toBe('1000');
+    expect(totals.decreased.toFixed()).toBe('0');
+    expect(totals.outstanding.toFixed()).toBe('1000');
   });
 
   it('maps aging buckets', () => {

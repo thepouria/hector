@@ -275,6 +275,20 @@ export const attributeKeys = {
     ['attributes', companyId, 'sku', skuId, 'values'] as const,
 };
 
+export const financeDashboardKeys = {
+  all: (companyId: string) => ['finance-dashboard', companyId] as const,
+  detail: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-dashboard', companyId, 'detail', filters] as const,
+};
+
+export const financeAuditKeys = {
+  all: (companyId: string) => ['finance-audit', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-audit', companyId, 'list', filters] as const,
+  detail: (companyId: string, auditLogId: string) =>
+    ['finance-audit', companyId, 'detail', auditLogId] as const,
+};
+
 export const financeAccountKeys = {
   all: (companyId: string) => ['finance-accounts', companyId] as const,
   list: (companyId: string, filters: Record<string, unknown> = {}) =>
@@ -329,6 +343,8 @@ export const financePaymentKeys = {
     ['finance-payments', companyId, 'list', filters] as const,
   detail: (companyId: string, id: string) =>
     ['finance-payments', companyId, 'detail', id] as const,
+  settlements: (companyId: string, paymentId: string) =>
+    ['finance-payments', companyId, 'settlements', paymentId] as const,
 };
 
 export const financeReceiptKeys = {
@@ -337,6 +353,35 @@ export const financeReceiptKeys = {
     ['finance-receipts', companyId, 'list', filters] as const,
   detail: (companyId: string, id: string) =>
     ['finance-receipts', companyId, 'detail', id] as const,
+};
+
+export const financeExpenseKeys = {
+  all: (companyId: string) => ['finance-expenses', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-expenses', companyId, 'list', filters] as const,
+  detail: (companyId: string, id: string) =>
+    ['finance-expenses', companyId, 'detail', id] as const,
+  categories: (companyId: string) => ['finance-expense-categories', companyId] as const,
+};
+
+export const financeJournalKeys = {
+  all: (companyId: string) => ['finance-journals', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-journals', companyId, 'list', filters] as const,
+  detail: (companyId: string, id: string) =>
+    ['finance-journals', companyId, 'detail', id] as const,
+  ledgerAccounts: (companyId: string) => ['finance-ledger-accounts', companyId] as const,
+  trialBalance: (companyId: string) => ['finance-trial-balance', companyId] as const,
+  generalLedger: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['finance-general-ledger', companyId, filters] as const,
+};
+
+export const financeSettlementKeys = {
+  all: (companyId: string) => ['finance-settlements', companyId] as const,
+  detail: (companyId: string, id: string) =>
+    ['finance-settlements', companyId, 'detail', id] as const,
+  preview: (companyId: string, payload: Record<string, unknown>) =>
+    ['finance-settlements', companyId, 'preview', payload] as const,
 };
 
 export const financeTransferKeys = {
