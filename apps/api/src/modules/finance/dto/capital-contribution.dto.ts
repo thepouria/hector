@@ -41,6 +41,12 @@ export class CreateCapitalContributionDto {
   @MaxLength(CAPITAL_CONTRIBUTOR_NAME_MAX_LENGTH)
   contributorName!: string;
 
+  /** Canonical contributor Party (same company). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  contributorPartyId?: string;
+
   @ApiProperty()
   @IsUUID()
   accountId!: string;

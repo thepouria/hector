@@ -73,7 +73,6 @@ export class InventoryReservationsService {
         statusCode: 400,
       });
     }
-    const sourceLineId = input.sourceLineId ?? input.sourceId;
     const actorUserId = getRequestContext()?.userId;
     if (!actorUserId) {
       throw new AppError({
@@ -85,107 +84,220 @@ export class InventoryReservationsService {
 
     return commitThenPublish(this.eventBus, async (events) => {
       const reservation = await this.database.client.$transaction(async (tx) => {
-        const byRequest = await tx.inventoryReservation.findUnique({
-          where: {
-            companyId_requestId: {
-              companyId: company.companyId,
-              requestId: input.requestId,
-            },
-          },
-          include: this.detailInclude(),
-        });
-        if (byRequest) return byRequest;
-
-        const bySource = await tx.inventoryReservation.findUnique({
-          where: {
-            companyId_sourceType_sourceId_sourceLineId: {
-              companyId: company.companyId,
-              sourceType: input.sourceType,
-              sourceId: input.sourceId,
-              sourceLineId,
-            },
-          },
-          include: this.detailInclude(),
-        });
-        if (bySource) return bySource;
-
-        await this.assertWarehouseSku(tx, company.companyId, input.warehouseId, input.skuId);
-        await this.lockAvailabilityScope(tx, company.companyId, input.warehouseId, input.skuId);
-
-        const availability = await this.computeAvailabilityInTx(
-          tx,
-          company.companyId,
-          input.warehouseId,
-          input.skuId,
-        );
-        if (availability.available < input.quantity) {
-          throw new AppError({
-            code: ERROR_CODES.INVENTORY_RESERVATION_INSUFFICIENT_AVAILABLE,
-            message: RESERVATION_ERROR_MESSAGES.INSUFFICIENT_AVAILABLE,
-            statusCode: 409,
-            details: availability,
-          });
-        }
-
-        const created = await tx.inventoryReservation.create({
-          data: {
-            companyId: company.companyId,
-            warehouseId: input.warehouseId,
-            skuId: input.skuId,
-            sourceType: input.sourceType,
-            sourceId: input.sourceId,
-            sourceLineId,
-            requestId: input.requestId,
-            quantity: input.quantity,
-            remainingQuantity: input.quantity,
-            status: InventoryReservationStatus.ACTIVE,
-            expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-            createdById: actorUserId,
-          },
-          include: this.detailInclude(),
-        });
-
-        await this.auditService.record(tx, {
-          action: AUDIT_ACTIONS.INVENTORY_RESERVED,
-          entityType: AUDIT_ENTITY_TYPES.INVENTORY_RESERVATION,
-          entityId: created.id,
-          before: null,
-          after: {
-            warehouseId: created.warehouseId,
-            skuId: created.skuId,
-            quantity: created.quantity,
-            status: created.status,
-            sourceType: created.sourceType,
-            sourceId: created.sourceId,
-          },
-          metadata: {
-            reservationId: created.id,
-            requestId: created.requestId,
-            availableAfter: availability.available - created.quantity,
-          },
-        });
-
-        events.push(
-          this.eventFactory.create({
-            type: DOMAIN_EVENTS.WAREHOUSE_INVENTORY_RESERVED,
-            payload: {
-              companyId: company.companyId,
-              reservationId: created.id,
-              warehouseId: created.warehouseId,
-              skuId: created.skuId,
-              quantity: created.quantity,
-              sourceType: created.sourceType,
-              sourceId: created.sourceId,
-              sourceLineId: created.sourceLineId,
-            },
-          }),
-        );
-
-        return created;
+        return this.createInTx(tx, company.companyId, actorUserId, input, events);
       });
 
       return this.toView(reservation);
     });
+  }
+
+  /**
+   * Create reservation inside an outer transaction (Sales order reserve, etc.).
+   * Idempotent on requestId and source identity. Emits events into `events` when provided.
+   */
+  async createInTx(
+    tx: Tx,
+    companyId: string,
+    actorUserId: string,
+    input: {
+      warehouseId: string;
+      skuId: string;
+      quantity: number;
+      sourceType: InventoryReservationSourceType;
+      sourceId: string;
+      sourceLineId?: string;
+      requestId: string;
+      expiresAt?: string | Date | null;
+    },
+    events?: Array<ReturnType<DomainEventFactory['create']>>,
+  ) {
+    if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+      throw new AppError({
+        code: ERROR_CODES.INVENTORY_RESERVATION_INVALID_QUANTITY,
+        message: RESERVATION_ERROR_MESSAGES.INVALID_QUANTITY,
+        statusCode: 400,
+      });
+    }
+    const sourceLineId = input.sourceLineId ?? input.sourceId;
+
+    const byRequest = await tx.inventoryReservation.findUnique({
+      where: {
+        companyId_requestId: {
+          companyId,
+          requestId: input.requestId,
+        },
+      },
+      include: this.detailInclude(),
+    });
+    if (byRequest) return byRequest;
+
+    const bySource = await tx.inventoryReservation.findUnique({
+      where: {
+        companyId_sourceType_sourceId_sourceLineId: {
+          companyId,
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          sourceLineId,
+        },
+      },
+      include: this.detailInclude(),
+    });
+    // Idempotent replay for ACTIVE (or already fully committed) source identity.
+    if (bySource?.status === InventoryReservationStatus.ACTIVE) {
+      return bySource;
+    }
+    if (bySource?.status === InventoryReservationStatus.CONSUMED) {
+      return bySource;
+    }
+
+    await this.assertWarehouseSku(tx, companyId, input.warehouseId, input.skuId);
+    await this.lockAvailabilityScope(tx, companyId, input.warehouseId, input.skuId);
+
+    const availability = await this.computeAvailabilityInTx(
+      tx,
+      companyId,
+      input.warehouseId,
+      input.skuId,
+    );
+    if (availability.available < input.quantity) {
+      throw new AppError({
+        code: ERROR_CODES.INVENTORY_RESERVATION_INSUFFICIENT_AVAILABLE,
+        message: RESERVATION_ERROR_MESSAGES.INSUFFICIENT_AVAILABLE,
+        statusCode: 409,
+        details: availability,
+      });
+    }
+
+    const expiresAt =
+      input.expiresAt == null
+        ? null
+        : input.expiresAt instanceof Date
+          ? input.expiresAt
+          : new Date(input.expiresAt);
+
+    // Source identity is unique — re-activate RELEASED/EXPIRED/CANCELLED rows instead of insert.
+    if (bySource) {
+      const reactivated = await tx.inventoryReservation.update({
+        where: { id: bySource.id },
+        data: {
+          warehouseId: input.warehouseId,
+          skuId: input.skuId,
+          requestId: input.requestId,
+          quantity: input.quantity,
+          remainingQuantity: input.quantity,
+          status: InventoryReservationStatus.ACTIVE,
+          expiresAt,
+          releasedAt: null,
+          expiredAt: null,
+          cancelledAt: null,
+          consumedAt: null,
+          version: { increment: 1 },
+        },
+        include: this.detailInclude(),
+      });
+
+      await this.auditService.record(tx, {
+        action: AUDIT_ACTIONS.INVENTORY_RESERVED,
+        entityType: AUDIT_ENTITY_TYPES.INVENTORY_RESERVATION,
+        entityId: reactivated.id,
+        before: {
+          status: bySource.status,
+          remainingQuantity: bySource.remainingQuantity,
+        },
+        after: {
+          warehouseId: reactivated.warehouseId,
+          skuId: reactivated.skuId,
+          quantity: reactivated.quantity,
+          status: reactivated.status,
+          sourceType: reactivated.sourceType,
+          sourceId: reactivated.sourceId,
+        },
+        metadata: {
+          reservationId: reactivated.id,
+          requestId: reactivated.requestId,
+          reactivated: true,
+          availableAfter: availability.available - reactivated.quantity,
+        },
+      });
+
+      if (events) {
+        events.push(
+          this.eventFactory.create({
+            type: DOMAIN_EVENTS.WAREHOUSE_INVENTORY_RESERVED,
+            payload: {
+              companyId,
+              reservationId: reactivated.id,
+              warehouseId: reactivated.warehouseId,
+              skuId: reactivated.skuId,
+              quantity: reactivated.quantity,
+              sourceType: reactivated.sourceType,
+              sourceId: reactivated.sourceId,
+              sourceLineId: reactivated.sourceLineId,
+            },
+          }),
+        );
+      }
+
+      return reactivated;
+    }
+
+    const created = await tx.inventoryReservation.create({
+      data: {
+        companyId,
+        warehouseId: input.warehouseId,
+        skuId: input.skuId,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        sourceLineId,
+        requestId: input.requestId,
+        quantity: input.quantity,
+        remainingQuantity: input.quantity,
+        status: InventoryReservationStatus.ACTIVE,
+        expiresAt,
+        createdById: actorUserId,
+      },
+      include: this.detailInclude(),
+    });
+
+    await this.auditService.record(tx, {
+      action: AUDIT_ACTIONS.INVENTORY_RESERVED,
+      entityType: AUDIT_ENTITY_TYPES.INVENTORY_RESERVATION,
+      entityId: created.id,
+      before: null,
+      after: {
+        warehouseId: created.warehouseId,
+        skuId: created.skuId,
+        quantity: created.quantity,
+        status: created.status,
+        sourceType: created.sourceType,
+        sourceId: created.sourceId,
+      },
+      metadata: {
+        reservationId: created.id,
+        requestId: created.requestId,
+        availableAfter: availability.available - created.quantity,
+      },
+    });
+
+    if (events) {
+      events.push(
+        this.eventFactory.create({
+          type: DOMAIN_EVENTS.WAREHOUSE_INVENTORY_RESERVED,
+          payload: {
+            companyId,
+            reservationId: created.id,
+            warehouseId: created.warehouseId,
+            skuId: created.skuId,
+            quantity: created.quantity,
+            sourceType: created.sourceType,
+            sourceId: created.sourceId,
+            sourceLineId: created.sourceLineId,
+          },
+        }),
+      );
+    }
+
+    return created;
   }
 
   async get(company: CompanyContext, id: string) {
@@ -242,104 +354,119 @@ export class InventoryReservationsService {
   async release(company: CompanyContext, id: string, quantity?: number) {
     return commitThenPublish(this.eventBus, async (events) => {
       const reservation = await this.database.client.$transaction(async (tx) => {
-        const locked = await tx.inventoryReservation.findFirst({
-          where: { id, companyId: company.companyId },
-        });
-        if (!locked) {
-          throw new AppError({
-            code: ERROR_CODES.INVENTORY_RESERVATION_NOT_FOUND,
-            message: RESERVATION_ERROR_MESSAGES.NOT_FOUND,
-            statusCode: 404,
-          });
-        }
-
-        await tx.$queryRaw`
-          SELECT id FROM inventory_reservations
-          WHERE id = ${id}::uuid AND company_id = ${company.companyId}::uuid
-          FOR UPDATE
-        `;
-
-        const current = await tx.inventoryReservation.findUniqueOrThrow({
-          where: { id },
-          include: this.detailInclude(),
-        });
-
-        if (current.status !== InventoryReservationStatus.ACTIVE) {
-          return current;
-        }
-
-        await this.lockAvailabilityScope(
+        return this.releaseInTx(
           tx,
           company.companyId,
-          current.warehouseId,
-          current.skuId,
+          { reservationId: id, quantity },
+          events,
         );
-
-        const releaseQty =
-          quantity == null ? current.remainingQuantity : quantity;
-        if (!Number.isInteger(releaseQty) || releaseQty <= 0) {
-          throw new AppError({
-            code: ERROR_CODES.INVENTORY_RESERVATION_INVALID_QUANTITY,
-            message: RESERVATION_ERROR_MESSAGES.INVALID_QUANTITY,
-            statusCode: 400,
-          });
-        }
-        if (releaseQty > current.remainingQuantity) {
-          throw new AppError({
-            code: ERROR_CODES.INVENTORY_RESERVATION_INVALID_QUANTITY,
-            message: RESERVATION_ERROR_MESSAGES.OVER_DECREASE,
-            statusCode: 409,
-          });
-        }
-
-        const nextRemaining = current.remainingQuantity - releaseQty;
-        const updated = await tx.inventoryReservation.update({
-          where: { id },
-          data: {
-            remainingQuantity: nextRemaining,
-            status:
-              nextRemaining === 0
-                ? InventoryReservationStatus.RELEASED
-                : InventoryReservationStatus.ACTIVE,
-            releasedAt: nextRemaining === 0 ? new Date() : current.releasedAt,
-            version: { increment: 1 },
-          },
-          include: this.detailInclude(),
-        });
-
-        await this.auditService.record(tx, {
-          action: AUDIT_ACTIONS.INVENTORY_RESERVATION_RELEASED,
-          entityType: AUDIT_ENTITY_TYPES.INVENTORY_RESERVATION,
-          entityId: id,
-          before: {
-            status: current.status,
-            remainingQuantity: current.remainingQuantity,
-          },
-          after: {
-            status: updated.status,
-            remainingQuantity: updated.remainingQuantity,
-            releasedQuantity: releaseQty,
-          },
-        });
-
-        events.push(
-          this.eventFactory.create({
-            type: DOMAIN_EVENTS.WAREHOUSE_INVENTORY_RESERVATION_RELEASED,
-            payload: {
-              companyId: company.companyId,
-              reservationId: id,
-              releasedQuantity: releaseQty,
-              remainingQuantity: updated.remainingQuantity,
-              status: updated.status,
-            },
-          }),
-        );
-
-        return updated;
       });
 
       return this.toView(reservation);
     });
+  }
+
+  /**
+   * Release (full or partial) inside an outer transaction.
+   * Idempotent when already non-ACTIVE. Emits events into `events` when provided.
+   */
+  async releaseInTx(
+    tx: Tx,
+    companyId: string,
+    input: { reservationId: string; quantity?: number },
+    events?: Array<ReturnType<DomainEventFactory['create']>>,
+  ) {
+    const locked = await tx.inventoryReservation.findFirst({
+      where: { id: input.reservationId, companyId },
+    });
+    if (!locked) {
+      throw new AppError({
+        code: ERROR_CODES.INVENTORY_RESERVATION_NOT_FOUND,
+        message: RESERVATION_ERROR_MESSAGES.NOT_FOUND,
+        statusCode: 404,
+      });
+    }
+
+    await tx.$queryRaw`
+      SELECT id FROM inventory_reservations
+      WHERE id = ${input.reservationId}::uuid AND company_id = ${companyId}::uuid
+      FOR UPDATE
+    `;
+
+    const current = await tx.inventoryReservation.findUniqueOrThrow({
+      where: { id: input.reservationId },
+      include: this.detailInclude(),
+    });
+
+    if (current.status !== InventoryReservationStatus.ACTIVE) {
+      return current;
+    }
+
+    await this.lockAvailabilityScope(tx, companyId, current.warehouseId, current.skuId);
+
+    const releaseQty =
+      input.quantity == null ? current.remainingQuantity : input.quantity;
+    if (!Number.isInteger(releaseQty) || releaseQty <= 0) {
+      throw new AppError({
+        code: ERROR_CODES.INVENTORY_RESERVATION_INVALID_QUANTITY,
+        message: RESERVATION_ERROR_MESSAGES.INVALID_QUANTITY,
+        statusCode: 400,
+      });
+    }
+    if (releaseQty > current.remainingQuantity) {
+      throw new AppError({
+        code: ERROR_CODES.INVENTORY_RESERVATION_INVALID_QUANTITY,
+        message: RESERVATION_ERROR_MESSAGES.OVER_DECREASE,
+        statusCode: 409,
+      });
+    }
+
+    const nextRemaining = current.remainingQuantity - releaseQty;
+    const updated = await tx.inventoryReservation.update({
+      where: { id: input.reservationId },
+      data: {
+        remainingQuantity: nextRemaining,
+        status:
+          nextRemaining === 0
+            ? InventoryReservationStatus.RELEASED
+            : InventoryReservationStatus.ACTIVE,
+        releasedAt: nextRemaining === 0 ? new Date() : current.releasedAt,
+        version: { increment: 1 },
+      },
+      include: this.detailInclude(),
+    });
+
+    await this.auditService.record(tx, {
+      action: AUDIT_ACTIONS.INVENTORY_RESERVATION_RELEASED,
+      entityType: AUDIT_ENTITY_TYPES.INVENTORY_RESERVATION,
+      entityId: input.reservationId,
+      before: {
+        status: current.status,
+        remainingQuantity: current.remainingQuantity,
+      },
+      after: {
+        status: updated.status,
+        remainingQuantity: updated.remainingQuantity,
+        releasedQuantity: releaseQty,
+      },
+    });
+
+    if (events) {
+      events.push(
+        this.eventFactory.create({
+          type: DOMAIN_EVENTS.WAREHOUSE_INVENTORY_RESERVATION_RELEASED,
+          payload: {
+            companyId,
+            reservationId: input.reservationId,
+            releasedQuantity: releaseQty,
+            remainingQuantity: updated.remainingQuantity,
+            status: updated.status,
+          },
+        }),
+      );
+    }
+
+    return updated;
   }
 
   async increase(
@@ -701,7 +828,8 @@ export class InventoryReservationsService {
     };
   }
 
-  private async lockAvailabilityScope(
+  /** Public for Sales orchestration to lock before computing Available. */
+  async lockAvailabilityScope(
     tx: Tx,
     companyId: string,
     warehouseId: string,

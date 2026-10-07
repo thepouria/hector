@@ -57,6 +57,15 @@ import type {
 } from '@/types/goods-receipt';
 import type { BatchDetail, BatchListItem } from '@/types/batch';
 import type { Warehouse } from '@/types/warehouse';
+import type {
+  CustomerDetail,
+  CustomerListItem,
+  SalesChannel,
+  SalesDashboard,
+  SalesFulfillment,
+  SalesOrder,
+  SalesReturn,
+} from '@/types/sales';
 import type { WarehouseLocation } from '@/types/warehouse-location';
 import type {
   PendingPutawayLine,
@@ -107,6 +116,15 @@ import type {
   SupplierReturnWarehouseDetail,
   SupplierReturnWarehouseListItem,
 } from '@/types/supplier-return-execution';
+import type {
+  PartyAddress,
+  PartyContact,
+  PartyDetail,
+  PartyDuplicateMatch,
+  PartyListItem,
+  PartyRelatedEntities,
+  PartyRole,
+} from '@/types/party';
 
 export async function fetchCompanies(): Promise<Company[]> {
   const result = await apiRequest<{ data: Company[] }>('/api/v1/companies');
@@ -5079,3 +5097,969 @@ export async function fetchFinanceAuditLog(
   });
   return result.data;
 }
+
+// --- Sales (Phase 5.4) ---
+
+function salesQueryString(query: Record<string, string | number | boolean | undefined> = {}): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export async function fetchSalesDashboard(
+  companyId: string,
+  query: Record<string, string | undefined> = {},
+): Promise<SalesDashboard> {
+  const result = await apiRequest<{ data: SalesDashboard }>(
+    `/api/v1/sales/dashboard${salesQueryString(query)}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function fetchSalesChannels(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<{ data: SalesChannel[]; meta: PaginationMeta }> {
+  return apiRequest(`/api/v1/sales/channels${salesQueryString(query)}`, { companyId });
+}
+
+export async function fetchSalesChannel(
+  companyId: string,
+  channelId: string,
+): Promise<SalesChannel> {
+  const result = await apiRequest<{ data: SalesChannel }>(
+    `/api/v1/sales/channels/${channelId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createSalesChannel(
+  companyId: string,
+  body: { code: string; name: string; type: string; notes?: string },
+): Promise<SalesChannel> {
+  const result = await apiRequest<{ data: SalesChannel }>('/api/v1/sales/channels', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function updateSalesChannel(
+  companyId: string,
+  channelId: string,
+  body: { name?: string; notes?: string | null },
+): Promise<SalesChannel> {
+  const result = await apiRequest<{ data: SalesChannel }>(
+    `/api/v1/sales/channels/${channelId}`,
+    { method: 'PATCH', companyId, body },
+  );
+  return result.data;
+}
+
+export async function activateSalesChannel(
+  companyId: string,
+  channelId: string,
+): Promise<SalesChannel> {
+  const result = await apiRequest<{ data: SalesChannel }>(
+    `/api/v1/sales/channels/${channelId}/activate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function deactivateSalesChannel(
+  companyId: string,
+  channelId: string,
+): Promise<SalesChannel> {
+  const result = await apiRequest<{ data: SalesChannel }>(
+    `/api/v1/sales/channels/${channelId}/deactivate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function fetchSalesCustomers(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<{ data: CustomerListItem[]; meta: PaginationMeta }> {
+  return apiRequest(`/api/v1/sales/customers${salesQueryString(query)}`, { companyId });
+}
+
+export async function fetchSalesCustomer(
+  companyId: string,
+  customerId: string,
+): Promise<CustomerDetail> {
+  const result = await apiRequest<{ data: CustomerDetail }>(
+    `/api/v1/sales/customers/${customerId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createSalesCustomer(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<CustomerDetail> {
+  const result = await apiRequest<{ data: CustomerDetail }>('/api/v1/sales/customers', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function updateSalesCustomer(
+  companyId: string,
+  customerId: string,
+  body: Record<string, unknown>,
+): Promise<CustomerDetail> {
+  const result = await apiRequest<{ data: CustomerDetail }>(
+    `/api/v1/sales/customers/${customerId}`,
+    { method: 'PATCH', companyId, body },
+  );
+  return result.data;
+}
+
+export async function activateSalesCustomer(
+  companyId: string,
+  customerId: string,
+): Promise<CustomerDetail> {
+  const result = await apiRequest<{ data: CustomerDetail }>(
+    `/api/v1/sales/customers/${customerId}/activate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function deactivateSalesCustomer(
+  companyId: string,
+  customerId: string,
+): Promise<CustomerDetail> {
+  const result = await apiRequest<{ data: CustomerDetail }>(
+    `/api/v1/sales/customers/${customerId}/deactivate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function fetchSalesOrders(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<{ data: SalesOrder[]; meta: PaginationMeta }> {
+  return apiRequest(`/api/v1/sales/orders${salesQueryString(query)}`, { companyId });
+}
+
+export async function fetchSalesOrder(companyId: string, orderId: string): Promise<SalesOrder> {
+  const result = await apiRequest<{ data: SalesOrder }>(`/api/v1/sales/orders/${orderId}`, {
+    companyId,
+  });
+  return result.data;
+}
+
+export async function createSalesOrder(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<SalesOrder> {
+  const result = await apiRequest<{ data: SalesOrder }>('/api/v1/sales/orders', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function updateSalesOrder(
+  companyId: string,
+  orderId: string,
+  body: Record<string, unknown>,
+): Promise<SalesOrder> {
+  const result = await apiRequest<{ data: SalesOrder }>(`/api/v1/sales/orders/${orderId}`, {
+    method: 'PATCH',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function confirmSalesOrder(companyId: string, orderId: string): Promise<SalesOrder> {
+  const result = await apiRequest<{ data: SalesOrder }>(
+    `/api/v1/sales/orders/${orderId}/confirm`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function cancelSalesOrder(
+  companyId: string,
+  orderId: string,
+  body: { reason?: string; notes?: string } = {},
+): Promise<SalesOrder> {
+  const result = await apiRequest<{ data: SalesOrder }>(
+    `/api/v1/sales/orders/${orderId}/cancel`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function cancelSalesOrderItem(
+  companyId: string,
+  orderId: string,
+  itemId: string,
+  body: { quantity: number; notes?: string },
+): Promise<SalesOrder> {
+  const result = await apiRequest<{ data: SalesOrder }>(
+    `/api/v1/sales/orders/${orderId}/items/${itemId}/cancel`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function reserveSalesOrder(
+  companyId: string,
+  orderId: string,
+  body: { warehouseId?: string } = {},
+): Promise<unknown> {
+  const result = await apiRequest<{ data: unknown }>(
+    `/api/v1/sales/orders/${orderId}/reserve`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function releaseSalesOrderReservations(
+  companyId: string,
+  orderId: string,
+): Promise<unknown> {
+  const result = await apiRequest<{ data: unknown }>(
+    `/api/v1/sales/orders/${orderId}/reservations/release`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function createSalesFulfillment(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<SalesFulfillment> {
+  const result = await apiRequest<{ data: SalesFulfillment }>('/api/v1/sales/fulfillments', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function completeSalesFulfillment(
+  companyId: string,
+  fulfillmentId: string,
+): Promise<SalesFulfillment> {
+  const result = await apiRequest<{ data: SalesFulfillment }>(
+    `/api/v1/sales/fulfillments/${fulfillmentId}/complete`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function fetchSalesReturns(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<{ data: SalesReturn[]; meta: PaginationMeta }> {
+  return apiRequest(`/api/v1/sales/returns${salesQueryString(query)}`, { companyId });
+}
+
+export async function fetchSalesReturn(
+  companyId: string,
+  returnId: string,
+): Promise<SalesReturn> {
+  const result = await apiRequest<{ data: SalesReturn }>(
+    `/api/v1/sales/returns/${returnId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createSalesReturn(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<SalesReturn> {
+  const result = await apiRequest<{ data: SalesReturn }>('/api/v1/sales/returns', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function approveSalesReturn(
+  companyId: string,
+  returnId: string,
+): Promise<SalesReturn> {
+  const result = await apiRequest<{ data: SalesReturn }>(
+    `/api/v1/sales/returns/${returnId}/approve`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function receiveSalesReturn(
+  companyId: string,
+  returnId: string,
+  body: Record<string, unknown>,
+): Promise<SalesReturn> {
+  const result = await apiRequest<{ data: SalesReturn }>(
+    `/api/v1/sales/returns/${returnId}/receive`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function cancelSalesReturn(
+  companyId: string,
+  returnId: string,
+  body: { notes?: string } = {},
+): Promise<SalesReturn> {
+  const result = await apiRequest<{ data: SalesReturn }>(
+    `/api/v1/sales/returns/${returnId}/cancel`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5.5 — Party Master
+// ---------------------------------------------------------------------------
+
+export async function fetchParties(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<{ data: PartyListItem[]; meta: PaginationMeta }> {
+  return apiRequest(`/api/v1/parties${salesQueryString(query)}`, { companyId });
+}
+
+export async function fetchParty(companyId: string, partyId: string): Promise<PartyDetail> {
+  const result = await apiRequest<{ data: PartyDetail }>(`/api/v1/parties/${partyId}`, {
+    companyId,
+  });
+  return result.data;
+}
+
+export async function fetchPartyRelatedEntities(
+  companyId: string,
+  partyId: string,
+): Promise<PartyRelatedEntities> {
+  const result = await apiRequest<{ data: PartyRelatedEntities }>(
+    `/api/v1/parties/${partyId}/related-entities`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createParty(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<PartyDetail> {
+  const result = await apiRequest<{ data: PartyDetail }>('/api/v1/parties', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function updateParty(
+  companyId: string,
+  partyId: string,
+  body: Record<string, unknown>,
+): Promise<PartyDetail> {
+  const result = await apiRequest<{ data: PartyDetail }>(`/api/v1/parties/${partyId}`, {
+    method: 'PATCH',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function activateParty(companyId: string, partyId: string): Promise<PartyDetail> {
+  const result = await apiRequest<{ data: PartyDetail }>(
+    `/api/v1/parties/${partyId}/activate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function deactivateParty(companyId: string, partyId: string): Promise<PartyDetail> {
+  const result = await apiRequest<{ data: PartyDetail }>(
+    `/api/v1/parties/${partyId}/deactivate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function archiveParty(companyId: string, partyId: string): Promise<PartyDetail> {
+  const result = await apiRequest<{ data: PartyDetail }>(
+    `/api/v1/parties/${partyId}/archive`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function checkPartyDuplicates(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<PartyDuplicateMatch[]> {
+  const result = await apiRequest<{ data: PartyDuplicateMatch[] }>(
+    '/api/v1/parties/duplicate-check',
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function addPartyContact(
+  companyId: string,
+  partyId: string,
+  body: Record<string, unknown>,
+): Promise<PartyContact> {
+  const result = await apiRequest<{ data: PartyContact }>(
+    `/api/v1/parties/${partyId}/contacts`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function setPartyContactPrimary(
+  companyId: string,
+  partyId: string,
+  contactId: string,
+): Promise<PartyContact> {
+  const result = await apiRequest<{ data: PartyContact }>(
+    `/api/v1/parties/${partyId}/contacts/${contactId}/primary`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function deactivatePartyContact(
+  companyId: string,
+  partyId: string,
+  contactId: string,
+): Promise<PartyContact> {
+  const result = await apiRequest<{ data: PartyContact }>(
+    `/api/v1/parties/${partyId}/contacts/${contactId}/deactivate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function addPartyAddress(
+  companyId: string,
+  partyId: string,
+  body: Record<string, unknown>,
+): Promise<PartyAddress> {
+  const result = await apiRequest<{ data: PartyAddress }>(
+    `/api/v1/parties/${partyId}/addresses`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function setPartyAddressPrimary(
+  companyId: string,
+  partyId: string,
+  addressId: string,
+): Promise<PartyAddress> {
+  const result = await apiRequest<{ data: PartyAddress }>(
+    `/api/v1/parties/${partyId}/addresses/${addressId}/primary`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function archivePartyAddress(
+  companyId: string,
+  partyId: string,
+  addressId: string,
+): Promise<PartyAddress> {
+  const result = await apiRequest<{ data: PartyAddress }>(
+    `/api/v1/parties/${partyId}/addresses/${addressId}/archive`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function addPartyRole(
+  companyId: string,
+  partyId: string,
+  body: { roleType: string },
+): Promise<PartyRole> {
+  const result = await apiRequest<{ data: PartyRole }>(
+    `/api/v1/parties/${partyId}/roles`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function deactivatePartyRole(
+  companyId: string,
+  partyId: string,
+  roleId: string,
+): Promise<PartyRole> {
+  const result = await apiRequest<{ data: PartyRole }>(
+    `/api/v1/parties/${partyId}/roles/${roleId}/deactivate`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+// --- Settlement / Reconciliation (Phase 6.5) ---
+
+function settlementQueryString(
+  query: Record<string, string | number | boolean | undefined> = {},
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export type SettlementMoneyByCurrency = {
+  currency: string;
+  amount: string;
+  count: number;
+};
+
+export type SettlementDashboard = {
+  asOf: string;
+  kpis: {
+    openPayableCount: number;
+    overduePayableCount: number;
+    partiallySettledPayableCount: number;
+    openLoanCount: number;
+    openChannelSettlementCount: number;
+    partiallyReceivedChannelCount: number;
+    needsMatchingCount: number;
+    openDiscrepancyCount: number;
+    underReviewCount: number;
+    matchedReconciliationCount: number;
+    resolvedReconciliationCount: number;
+  };
+  outstandingPayablesByCurrency: SettlementMoneyByCurrency[];
+  overduePayablesByCurrency: SettlementMoneyByCurrency[];
+  dueSoonPayablesByCurrency: SettlementMoneyByCurrency[];
+  outstandingLoansByCurrency: SettlementMoneyByCurrency[];
+  expectedChannelReceiptsByCurrency: SettlementMoneyByCurrency[];
+  attentionQueue: Array<{
+    kind: string;
+    id: string;
+    label: string;
+    currency: string;
+    amount: string;
+    status: string;
+    hrefHint: string;
+  }>;
+  recent: {
+    channelSettlements: Array<{
+      id: string;
+      number: string;
+      channelCode: string;
+      channelName: string;
+      currency: string;
+      expectedNet: string;
+      status: string;
+      periodStart: string;
+      periodEnd: string;
+      updatedAt: string;
+    }>;
+    reconciliations: Array<{
+      id: string;
+      number: string;
+      sourceType: string;
+      sourceId: string;
+      currency: string;
+      status: string;
+      updatedAt: string;
+    }>;
+  };
+  semantics: {
+    currenciesNeverCombined: true;
+    outstandingIsNotDiscrepancy: true;
+    financeRemainsMoneyTruth: true;
+  };
+};
+
+export type ChannelSettlementView = {
+  id: string;
+  number: string;
+  channelId: string;
+  channel?: { id: string; code: string; name: string };
+  currency: string;
+  status: string;
+  expectedNet: string;
+  actualReceived: string;
+  actualReceivedAmount?: string;
+  outstandingAmount: string;
+  periodStart: string;
+  periodEnd: string;
+  externalReference?: string | null;
+  notes?: string | null;
+  components: Array<{
+    id: string;
+    type: string;
+    effect: string;
+    amount: string;
+    currency: string;
+    description?: string | null;
+    reference?: string | null;
+    notes?: string | null;
+    sortOrder: number;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReconciliationView = {
+  id: string;
+  number: string;
+  sourceType: string;
+  sourceId: string;
+  currency: string;
+  status: string;
+  expectedAmount: string;
+  matchedAmount: string;
+  remainingExpected: string;
+  differenceAmount: string;
+  matchingClosedAt: string | null;
+  expectedSnapshot: string | null;
+  reviewStartedAt: string | null;
+  resolvedAt: string | null;
+  resolutionType: string | null;
+  resolutionNotes: string | null;
+  notes: string | null;
+  allocations: Array<{
+    id: string;
+    settlementId: string;
+    financeTxnType: string;
+    financeTxnId: string;
+    amount: string;
+    paymentAmount: string;
+    createdAt: string;
+  }>;
+  discrepancies: Array<{
+    id: string;
+    amount: string;
+    currency: string;
+    reasonCode: string;
+    description: string | null;
+    status: string;
+    resolvedAt: string | null;
+    resolutionType: string | null;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchSettlementDashboard(
+  companyId: string,
+): Promise<SettlementDashboard> {
+  const result = await apiRequest<{ data: SettlementDashboard }>(
+    '/api/v1/settlements/dashboard',
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function fetchSettlementOutstandingPayables(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+) {
+  return apiRequest<{
+    data: Array<{
+      payableId: string;
+      number: string;
+      supplier: { id: string; code: string; name: string };
+      currency: string;
+      originalAmount: string;
+      settledAmount: string;
+      outstandingAmount: string;
+      dueDate: string | null;
+      overdue: boolean;
+      status: string;
+    }>;
+    meta: {
+      page: number;
+      pageSize: number;
+      total: number;
+      outstandingByCurrency?: Array<{ currency: string; amount: string }>;
+    };
+  }>(`/api/v1/settlements/outstanding/payables${settlementQueryString(query)}`, {
+    companyId,
+  });
+}
+
+export async function fetchSettlementOutstandingLoans(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+) {
+  return apiRequest<{
+    data: Array<{
+      loanId: string;
+      number: string;
+      lenderParty: { id: string; partyCode: string; displayName: string } | null;
+      currency: string;
+      originalPrincipal: string;
+      repaidPrincipal: string;
+      outstandingPrincipal: string;
+      status: string;
+      dueDate: string | null;
+      overdue: boolean;
+    }>;
+    meta: {
+      page: number;
+      pageSize: number;
+      total: number;
+      outstandingByCurrency?: Array<{ currency: string; amount: string }>;
+    };
+  }>(`/api/v1/settlements/outstanding/loans${settlementQueryString(query)}`, {
+    companyId,
+  });
+}
+
+export async function fetchSettlementPayableSummary(
+  companyId: string,
+  payableId: string,
+) {
+  const result = await apiRequest<{ data: Record<string, unknown> }>(
+    `/api/v1/settlements/payables/${payableId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function settleSettlementPayable(
+  companyId: string,
+  payableId: string,
+  body: {
+    paymentId: string;
+    amount: string;
+    paymentAmount?: string;
+    requestId: string;
+  },
+) {
+  const result = await apiRequest<{ data: Record<string, unknown> }>(
+    `/api/v1/settlements/payables/${payableId}/settle`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function fetchSettlementLoanSummary(companyId: string, loanId: string) {
+  const result = await apiRequest<{ data: Record<string, unknown> }>(
+    `/api/v1/settlements/loans/${loanId}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function repaySettlementLoan(
+  companyId: string,
+  loanId: string,
+  body: {
+    paymentId: string;
+    amount: string;
+    paymentAmount?: string;
+    fxRate?: string;
+    requestId: string;
+  },
+) {
+  const result = await apiRequest<{ data: Record<string, unknown> }>(
+    `/api/v1/settlements/loans/${loanId}/repay`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function fetchChannelSettlements(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+) {
+  return apiRequest<{
+    data: ChannelSettlementView[];
+    meta: {
+      page: number;
+      pageSize: number;
+      total: number;
+      outstandingByCurrency?: Array<{ currency: string; amount: string }>;
+    };
+  }>(`/api/v1/settlements/channels${settlementQueryString(query)}`, { companyId });
+}
+
+export async function fetchChannelSettlement(companyId: string, id: string) {
+  const result = await apiRequest<{ data: ChannelSettlementView }>(
+    `/api/v1/settlements/channels/${id}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function createChannelSettlement(
+  companyId: string,
+  body: Record<string, unknown>,
+) {
+  const result = await apiRequest<{ data: ChannelSettlementView }>(
+    '/api/v1/settlements/channels',
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function replaceChannelSettlementComponents(
+  companyId: string,
+  id: string,
+  body: { components: Array<Record<string, unknown>> },
+) {
+  const result = await apiRequest<{ data: ChannelSettlementView }>(
+    `/api/v1/settlements/channels/${id}/components`,
+    { method: 'PUT', companyId, body },
+  );
+  return result.data;
+}
+
+export async function finalizeChannelSettlement(companyId: string, id: string) {
+  const result = await apiRequest<{ data: ChannelSettlementView }>(
+    `/api/v1/settlements/channels/${id}/finalize`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function allocateChannelSettlementReceipt(
+  companyId: string,
+  id: string,
+  body: { receiptId: string; amount: string; requestId: string },
+) {
+  const result = await apiRequest<{ data: ChannelSettlementView }>(
+    `/api/v1/settlements/channels/${id}/allocate-receipt`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function fetchReconciliations(
+  companyId: string,
+  query: Record<string, string | number | undefined> = {},
+) {
+  return apiRequest<{
+    data: ReconciliationView[];
+    meta: { page: number; pageSize: number; total: number };
+  }>(`/api/v1/reconciliations${settlementQueryString(query)}`, { companyId });
+}
+
+export async function fetchReconciliation(companyId: string, id: string) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function openReconciliation(
+  companyId: string,
+  body: { sourceType: string; sourceId: string; requestId: string; notes?: string },
+) {
+  const result = await apiRequest<{ data: ReconciliationView }>('/api/v1/reconciliations', {
+    method: 'POST',
+    companyId,
+    body,
+  });
+  return result.data;
+}
+
+export async function fetchReconciliationCandidates(
+  companyId: string,
+  id: string,
+  query: Record<string, string | undefined> = {},
+) {
+  const result = await apiRequest<{ data: Array<Record<string, unknown>> }>(
+    `/api/v1/reconciliations/${id}/candidates${settlementQueryString(query)}`,
+    { companyId },
+  );
+  return result.data;
+}
+
+export async function matchReconciliation(
+  companyId: string,
+  id: string,
+  body: {
+    financeTxnType: string;
+    financeTxnId: string;
+    amount: string;
+    paymentAmount?: string;
+    requestId: string;
+  },
+) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}/match`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function reverseReconciliationMatch(
+  companyId: string,
+  id: string,
+  body: { allocationId: string; reason: string },
+) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}/reverse-match`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function closeReconciliationMatching(companyId: string, id: string) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}/close-matching`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function addReconciliationDiscrepancy(
+  companyId: string,
+  id: string,
+  body: { amount: string; reasonCode: string; description?: string },
+) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}/discrepancies`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+
+export async function moveReconciliationUnderReview(companyId: string, id: string) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}/under-review`,
+    { method: 'POST', companyId },
+  );
+  return result.data;
+}
+
+export async function resolveReconciliation(
+  companyId: string,
+  id: string,
+  body: { resolutionType: string; resolutionNotes?: string; requestId: string },
+) {
+  const result = await apiRequest<{ data: ReconciliationView }>(
+    `/api/v1/reconciliations/${id}/resolve`,
+    { method: 'POST', companyId, body },
+  );
+  return result.data;
+}
+

@@ -1,21 +1,16 @@
 import type { Metadata } from 'next';
-import { PlaceholderModule } from '@/components/feedback/states';
+import { Suspense } from 'react';
+import { PageSkeleton } from '@/components/feedback/states';
+import { SalesDashboardPage } from '@/features/sales/sales-dashboard-page';
 
 export const metadata: Metadata = {
-  title: 'فروش',
+  title: 'داشبورد فروش',
 };
 
 export default function Page() {
   return (
-    <PlaceholderModule
-      title="فروش"
-      description="کانال‌های فروش و سفارش‌ها"
-      upcoming={[
-          'خانومی',
-          'دیجی‌کالا',
-          'اسنپ‌شاپ',
-          'سایت پیشته',
-      ]}
-    />
+    <Suspense fallback={<PageSkeleton />}>
+      <SalesDashboardPage />
+    </Suspense>
   );
 }

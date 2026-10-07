@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import {
   SUPPLIER_ADDRESS_MAX_LENGTH,
   SUPPLIER_CODE_MAX_LENGTH,
@@ -45,4 +45,10 @@ export class CreateSupplierDto {
   @IsString()
   @MaxLength(SUPPLIER_ADDRESS_MAX_LENGTH)
   address?: string;
+
+  /** Attach SUPPLIER relationship to an existing same-company Party. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  partyId?: string;
 }

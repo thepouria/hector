@@ -112,6 +112,11 @@ export const PERMISSIONS = {
   FINANCE_PAYABLES_MANAGE: 'finance.payables.manage',
   FINANCE_SETTLEMENTS_READ: 'finance.settlements.read',
   FINANCE_SETTLEMENTS_MANAGE: 'finance.settlements.manage',
+  FINANCE_RECONCILIATION_READ: 'finance.reconciliation.read',
+  FINANCE_RECONCILIATION_MATCH: 'finance.reconciliation.match',
+  FINANCE_RECONCILIATION_REVIEW: 'finance.reconciliation.review',
+  FINANCE_RECONCILIATION_RESOLVE: 'finance.reconciliation.resolve',
+  FINANCE_RECONCILIATION_REVERSE: 'finance.reconciliation.reverse',
   FINANCE_PAYMENTS_READ: 'finance.payments.read',
   FINANCE_PAYMENTS_CREATE: 'finance.payments.create',
   FINANCE_RECEIPTS_READ: 'finance.receipts.read',
@@ -124,6 +129,44 @@ export const PERMISSIONS = {
   FINANCE_JOURNALS_POST: 'finance.journals.post',
   FINANCE_AUDIT_READ: 'finance.audit.read',
   FINANCE_DASHBOARD_READ: 'finance.dashboard.read',
+
+  // Phase 5.1 — Sales Channel + Customer Master
+  SALES_CHANNELS_READ: 'sales.channels.read',
+  SALES_CHANNELS_MANAGE: 'sales.channels.manage',
+  SALES_CUSTOMERS_READ: 'sales.customers.read',
+  SALES_CUSTOMERS_MANAGE: 'sales.customers.manage',
+
+  // Phase 5.2 — Sales Orders + Returns
+  SALES_ORDERS_READ: 'sales.orders.read',
+  SALES_ORDERS_CREATE: 'sales.orders.create',
+  SALES_ORDERS_MANAGE: 'sales.orders.manage',
+  SALES_ORDERS_CONFIRM: 'sales.orders.confirm',
+  SALES_ORDERS_CANCEL: 'sales.orders.cancel',
+  SALES_RETURNS_READ: 'sales.returns.read',
+  SALES_RETURNS_CREATE: 'sales.returns.create',
+  SALES_RETURNS_MANAGE: 'sales.returns.manage',
+  SALES_RETURNS_APPROVE: 'sales.returns.approve',
+  SALES_RETURNS_RECEIVE: 'sales.returns.receive',
+
+  // Phase 5.3 — Reservation / Fulfillment / Receivables
+  SALES_ORDERS_RESERVE: 'sales.orders.reserve',
+  SALES_FULFILLMENTS_READ: 'sales.fulfillments.read',
+  SALES_FULFILLMENTS_CREATE: 'sales.fulfillments.create',
+  SALES_FULFILLMENTS_MANAGE: 'sales.fulfillments.manage',
+  SALES_FULFILLMENTS_COMPLETE: 'sales.fulfillments.complete',
+  FINANCE_RECEIVABLES_READ: 'finance.receivables.read',
+
+  // Phase 5.4 — Sales Dashboard
+  SALES_DASHBOARD_READ: 'sales.dashboard.read',
+
+  // Phase 5.5.1 — Party Master
+  PARTY_READ: 'party.read',
+  PARTY_CREATE: 'party.create',
+  PARTY_UPDATE: 'party.update',
+  PARTY_STATUS: 'party.status',
+  PARTY_CONTACTS_MANAGE: 'party.contacts.manage',
+  PARTY_ADDRESSES_MANAGE: 'party.addresses.manage',
+  PARTY_ROLES_MANAGE: 'party.roles.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -414,6 +457,26 @@ export const PERMISSION_DEFINITIONS: ReadonlyArray<{
     key: PERMISSIONS.FINANCE_SETTLEMENTS_MANAGE,
     description: 'Create and reverse liability settlement allocations',
   },
+  {
+    key: PERMISSIONS.FINANCE_RECONCILIATION_READ,
+    description: 'Read expected vs actual reconciliation cases',
+  },
+  {
+    key: PERMISSIONS.FINANCE_RECONCILIATION_MATCH,
+    description: 'Match Finance transactions to expected sources via allocations',
+  },
+  {
+    key: PERMISSIONS.FINANCE_RECONCILIATION_REVIEW,
+    description: 'Review discrepancies and record explanation lines',
+  },
+  {
+    key: PERMISSIONS.FINANCE_RECONCILIATION_RESOLVE,
+    description: 'Resolve reconciliation discrepancies with audit evidence',
+  },
+  {
+    key: PERMISSIONS.FINANCE_RECONCILIATION_REVERSE,
+    description: 'Reverse reconciliation matches (allocation reversals)',
+  },
   { key: PERMISSIONS.FINANCE_PAYMENTS_READ, description: 'Read standalone financial payments (money-out)' },
   {
     key: PERMISSIONS.FINANCE_PAYMENTS_CREATE,
@@ -432,6 +495,62 @@ export const PERMISSION_DEFINITIONS: ReadonlyArray<{
   { key: PERMISSIONS.FINANCE_JOURNALS_POST, description: 'Post / reverse accounting journals' },
   { key: PERMISSIONS.FINANCE_AUDIT_READ, description: 'Read Finance-domain audit trail' },
   { key: PERMISSIONS.FINANCE_DASHBOARD_READ, description: 'Read Finance dashboard summaries' },
+
+  { key: PERMISSIONS.SALES_CHANNELS_READ, description: 'List and view sales channels' },
+  { key: PERMISSIONS.SALES_CHANNELS_MANAGE, description: 'Create, update, and change sales channel status' },
+  { key: PERMISSIONS.SALES_CUSTOMERS_READ, description: 'List and view customers and addresses' },
+  {
+    key: PERMISSIONS.SALES_CUSTOMERS_MANAGE,
+    description: 'Create, update, and manage customers and addresses',
+  },
+  { key: PERMISSIONS.SALES_ORDERS_READ, description: 'List and view sales orders' },
+  { key: PERMISSIONS.SALES_ORDERS_CREATE, description: 'Create draft sales orders' },
+  { key: PERMISSIONS.SALES_ORDERS_MANAGE, description: 'Update draft sales orders' },
+  { key: PERMISSIONS.SALES_ORDERS_CONFIRM, description: 'Confirm draft sales orders' },
+  { key: PERMISSIONS.SALES_ORDERS_CANCEL, description: 'Cancel sales orders and order items' },
+  { key: PERMISSIONS.SALES_RETURNS_READ, description: 'List and view sales returns' },
+  { key: PERMISSIONS.SALES_RETURNS_CREATE, description: 'Create draft sales returns' },
+  { key: PERMISSIONS.SALES_RETURNS_MANAGE, description: 'Cancel sales returns' },
+  { key: PERMISSIONS.SALES_RETURNS_APPROVE, description: 'Approve sales returns (commercial intent)' },
+  {
+    key: PERMISSIONS.SALES_RETURNS_RECEIVE,
+    description: 'Physically receive approved sales returns into warehouse',
+  },
+  { key: PERMISSIONS.SALES_ORDERS_RESERVE, description: 'Reserve inventory for confirmed sales orders' },
+  { key: PERMISSIONS.SALES_FULFILLMENTS_READ, description: 'List and view sales fulfillments' },
+  { key: PERMISSIONS.SALES_FULFILLMENTS_CREATE, description: 'Create draft sales fulfillments' },
+  {
+    key: PERMISSIONS.SALES_FULFILLMENTS_MANAGE,
+    description: 'Update or cancel draft sales fulfillments',
+  },
+  {
+    key: PERMISSIONS.SALES_FULFILLMENTS_COMPLETE,
+    description: 'Complete sales fulfillments (ISSUE + recognition)',
+  },
+  {
+    key: PERMISSIONS.FINANCE_RECEIVABLES_READ,
+    description: 'List and view customer/channel receivables',
+  },
+  {
+    key: PERMISSIONS.SALES_DASHBOARD_READ,
+    description: 'Read Sales operational dashboard aggregates',
+  },
+  { key: PERMISSIONS.PARTY_READ, description: 'Read Party Master identity records' },
+  { key: PERMISSIONS.PARTY_CREATE, description: 'Create Party Master identity records' },
+  { key: PERMISSIONS.PARTY_UPDATE, description: 'Update Party Master identity fields' },
+  { key: PERMISSIONS.PARTY_STATUS, description: 'Activate, deactivate, or archive Parties' },
+  {
+    key: PERMISSIONS.PARTY_CONTACTS_MANAGE,
+    description: 'Manage Party contact points (phones, emails, etc.)',
+  },
+  {
+    key: PERMISSIONS.PARTY_ADDRESSES_MANAGE,
+    description: 'Manage Party addresses',
+  },
+  {
+    key: PERMISSIONS.PARTY_ROLES_MANAGE,
+    description: 'Add or deactivate Party business roles (capacity flags only)',
+  },
 ];
 
 export const ALL_PERMISSION_KEYS: readonly PermissionKey[] = PERMISSION_DEFINITIONS.map(

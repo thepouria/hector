@@ -6,6 +6,9 @@ import {
   FinancialAccountMovementDirection,
   FinancialAccountMovementType,
   FinancialAccountStatus,
+  FinanceCounterpartyType,
+  PartyRoleType,
+  PartyType,
   Prisma,
 } from '@hector/database';
 import { ERROR_CODES } from '../../common/constants';
@@ -25,6 +28,7 @@ import {
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES } from '../audit/audit.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CompanyContext } from '../companies/types/company.types';
+import { PartyIdentityLookupService } from '../party/party-identity-lookup.service';
 import { postMovementsInTx } from './account-movements.writer';
 import {
   allocateCapitalContributionSequence,
@@ -74,6 +78,7 @@ export class CapitalContributionsService {
     private readonly eventBus: DomainEventBus,
     private readonly journalPosting: JournalPostingService,
     private readonly ledgerAccounts: LedgerAccountsService,
+    private readonly partyIdentity: PartyIdentityLookupService,
   ) {}
 
   async list(
@@ -205,6 +210,62 @@ export class CapitalContributionsService {
           const seq = await allocateCapitalContributionSequence(tx, company.companyId);
           const number = formatCapitalContributionNumber(seq);
 
+          let contributorPartyId: string | null = null;
+          let resolvedContributorName = contributorName;
+
+          if (dto.contributorPartyId) {
+            const party = await this.partyIdentity.requireCompanyParty(
+              tx,
+              company.companyId,
+              dto.contributorPartyId,
+            );
+            contributorPartyId = party.id;
+            resolvedContributorName = party.displayName;
+            if (dto.contributorType === FinanceCounterpartyType.PARTNER) {
+              await this.partyIdentity.ensureActiveRole(
+                tx,
+                company.companyId,
+                party.id,
+                PartyRoleType.PARTNER,
+              );
+              const partner = await tx.partner.findUnique({
+                where: {
+                  companyId_partyId: { companyId: company.companyId, partyId: party.id },
+                },
+              });
+              if (!partner) {
+                await tx.partner.create({
+                  data: {
+                    companyId: company.companyId,
+                    partyId: party.id,
+                    notes: 'Auto-created from capital contribution (ownership deferred to Phase 10)',
+                  },
+                });
+              }
+            }
+          } else {
+            const roleType =
+              dto.contributorType === FinanceCounterpartyType.PARTNER
+                ? PartyRoleType.PARTNER
+                : PartyRoleType.OTHER;
+            const party = await this.partyIdentity.createPartyWithRole(tx, company.companyId, {
+              type: PartyType.INDIVIDUAL,
+              displayName: contributorName,
+              roleType,
+              createdById: actorUserId,
+            });
+            contributorPartyId = party.id;
+            if (dto.contributorType === FinanceCounterpartyType.PARTNER) {
+              await tx.partner.create({
+                data: {
+                  companyId: company.companyId,
+                  partyId: party.id,
+                  notes: 'Auto-created from capital contribution (ownership deferred to Phase 10)',
+                },
+              });
+            }
+          }
+
           let row = await tx.capitalContribution.create({
             data: {
               companyId: company.companyId,
@@ -212,7 +273,8 @@ export class CapitalContributionsService {
               fundingType: dto.fundingType,
               contributorType: dto.contributorType,
               contributorId: dto.contributorId ?? null,
-              contributorName,
+              contributorName: resolvedContributorName,
+              contributorPartyId,
               accountId: account.id,
               amount,
               currency: account.currency,

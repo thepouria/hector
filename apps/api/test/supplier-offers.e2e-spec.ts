@@ -12,6 +12,7 @@ import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { DOMAIN_EVENTS, DomainEventBus } from '../src/infrastructure/events';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 describe('Supplier Offers (e2e)', () => {
   let app: INestApplication;
@@ -168,12 +169,10 @@ describe('Supplier Offers (e2e)', () => {
 
   it('uses quotedAt for latest, not insertion order', async () => {
     const token = await login(ownerEmail);
-    const supplier = await database.client.supplier.create({
-      data: {
-        companyId: pishtehId,
-        name: `Latest ${Date.now()}`,
-        status: 'ACTIVE',
-      },
+    const supplier = await createPartyLinkedSupplier(database.client, {
+      companyId: pishtehId,
+      name: `Latest ${Date.now()}`,
+      status: 'ACTIVE',
     });
 
     await request(app.getHttpServer())
@@ -325,12 +324,10 @@ describe('Supplier Offers (e2e)', () => {
 
   it('rejects archived supplier for new offers; history remains readable', async () => {
     const token = await login(ownerEmail);
-    const supplier = await database.client.supplier.create({
-      data: {
-        companyId: pishtehId,
-        name: `ArchOffer ${Date.now()}`,
-        status: 'ACTIVE',
-      },
+    const supplier = await createPartyLinkedSupplier(database.client, {
+      companyId: pishtehId,
+      name: `ArchOffer ${Date.now()}`,
+      status: 'ACTIVE',
     });
     const created = await request(app.getHttpServer())
       .post('/api/v1/purchasing/offers')

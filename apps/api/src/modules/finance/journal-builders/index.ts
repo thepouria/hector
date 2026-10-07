@@ -915,3 +915,132 @@ export async function postSupplierPayableSettlementJournalInTx(
     lines,
   });
 }
+
+/**
+ * Sales AR recognition (Phase 5.3): DR CUSTOMER_RECEIVABLE | CHANNEL_RECEIVABLE · CR REVENUE.
+ * Never posts FinancialAccountMovement / bank cash.
+ */
+export async function postSalesArRecognitionJournalInTx(
+  tx: Tx,
+  svc: Services,
+  input: {
+    companyId: string;
+    actorUserId: string;
+    salesFulfillmentId: string;
+    receivableNumber: string;
+    amount: Prisma.Decimal;
+    currency: CurrencyCode;
+    effectiveAt: Date;
+    arSystemKey:
+      | typeof LEDGER_SYSTEM_KEYS.CUSTOMER_RECEIVABLE
+      | typeof LEDGER_SYSTEM_KEYS.CHANNEL_RECEIVABLE;
+  },
+): Promise<void> {
+  if (input.amount.lte(0)) return;
+  const baseCurrency = await companyBase(tx, input.companyId);
+  const ar = await svc.ledger.resolveSystemKey(tx, input.companyId, input.arSystemKey);
+  const revenue = await svc.ledger.resolveSystemKey(
+    tx,
+    input.companyId,
+    LEDGER_SYSTEM_KEYS.REVENUE_FOUNDATION,
+  );
+  const lines = [
+    await moneyLine(tx, {
+      companyId: input.companyId,
+      baseCurrency,
+      ledgerAccountId: ar.id,
+      direction: JournalLineDirection.DEBIT,
+      amount: input.amount,
+      currency: input.currency,
+      asOf: input.effectiveAt,
+      description: `AR ${input.receivableNumber}`,
+      lineOrder: 0,
+    }),
+    await moneyLine(tx, {
+      companyId: input.companyId,
+      baseCurrency,
+      ledgerAccountId: revenue.id,
+      direction: JournalLineDirection.CREDIT,
+      amount: input.amount,
+      currency: input.currency,
+      asOf: input.effectiveAt,
+      description: `Revenue ${input.receivableNumber}`,
+      lineOrder: 1,
+    }),
+  ];
+  await svc.journals.postInTx(tx, {
+    companyId: input.companyId,
+    actorUserId: input.actorUserId,
+    description: `Sales AR recognition ${input.receivableNumber}`,
+    sourceType: JOURNAL_SOURCE_TYPES.SALES_FULFILLMENT,
+    sourceId: input.salesFulfillmentId,
+    effectType: JOURNAL_EFFECT_TYPES.SALES_AR_RECOGNITION,
+    effectiveAt: input.effectiveAt,
+    baseCurrency,
+    lines,
+  });
+}
+
+/**
+ * Sales AR credit on physical return receive: DR REVENUE · CR AR.
+ */
+export async function postSalesArCreditJournalInTx(
+  tx: Tx,
+  svc: Services,
+  input: {
+    companyId: string;
+    actorUserId: string;
+    salesReturnId: string;
+    receivableNumber: string;
+    amount: Prisma.Decimal;
+    currency: CurrencyCode;
+    effectiveAt: Date;
+    arSystemKey:
+      | typeof LEDGER_SYSTEM_KEYS.CUSTOMER_RECEIVABLE
+      | typeof LEDGER_SYSTEM_KEYS.CHANNEL_RECEIVABLE;
+  },
+): Promise<void> {
+  if (input.amount.lte(0)) return;
+  const baseCurrency = await companyBase(tx, input.companyId);
+  const ar = await svc.ledger.resolveSystemKey(tx, input.companyId, input.arSystemKey);
+  const revenue = await svc.ledger.resolveSystemKey(
+    tx,
+    input.companyId,
+    LEDGER_SYSTEM_KEYS.REVENUE_FOUNDATION,
+  );
+  const lines = [
+    await moneyLine(tx, {
+      companyId: input.companyId,
+      baseCurrency,
+      ledgerAccountId: revenue.id,
+      direction: JournalLineDirection.DEBIT,
+      amount: input.amount,
+      currency: input.currency,
+      asOf: input.effectiveAt,
+      description: `Revenue credit ${input.receivableNumber}`,
+      lineOrder: 0,
+    }),
+    await moneyLine(tx, {
+      companyId: input.companyId,
+      baseCurrency,
+      ledgerAccountId: ar.id,
+      direction: JournalLineDirection.CREDIT,
+      amount: input.amount,
+      currency: input.currency,
+      asOf: input.effectiveAt,
+      description: `AR credit ${input.receivableNumber}`,
+      lineOrder: 1,
+    }),
+  ];
+  await svc.journals.postInTx(tx, {
+    companyId: input.companyId,
+    actorUserId: input.actorUserId,
+    description: `Sales AR credit ${input.receivableNumber}`,
+    sourceType: JOURNAL_SOURCE_TYPES.SALES_RETURN,
+    sourceId: input.salesReturnId,
+    effectType: JOURNAL_EFFECT_TYPES.SALES_AR_CREDIT,
+    effectiveAt: input.effectiveAt,
+    baseCurrency,
+    lines,
+  });
+}

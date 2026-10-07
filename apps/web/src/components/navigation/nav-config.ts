@@ -30,6 +30,8 @@ import {
   Landmark,
   FileSpreadsheet,
   History,
+  Users,
+  Store,
 } from 'lucide-react';
 import { PERMISSIONS, type PermissionKey } from '@/lib/permissions/keys';
 import { ROUTES } from '@/lib/utils/routes';
@@ -244,10 +246,77 @@ export const NAVIGATION: NavGroup[] = [
     label: 'فروش',
     items: [
       {
-        label: 'فروش',
+        label: 'داشبورد فروش',
         href: ROUTES.sales,
+        icon: LayoutDashboard,
+        permission: PERMISSIONS.SALES_DASHBOARD_READ,
+        exact: true,
+      },
+      {
+        label: 'سفارش‌های فروش',
+        href: ROUTES.salesOrders,
         icon: ShoppingBag,
-        placeholder: true,
+        permission: PERMISSIONS.SALES_ORDERS_READ,
+      },
+      {
+        label: 'مشتریان',
+        href: ROUTES.salesCustomers,
+        icon: Users,
+        permission: PERMISSIONS.SALES_CUSTOMERS_READ,
+      },
+      {
+        label: 'کانال‌های فروش',
+        href: ROUTES.salesChannels,
+        icon: Store,
+        permission: PERMISSIONS.SALES_CHANNELS_READ,
+      },
+      {
+        label: 'برگشت از مشتری',
+        href: ROUTES.salesReturns,
+        icon: RotateCcw,
+        permission: PERMISSIONS.SALES_RETURNS_READ,
+      },
+    ],
+  },
+  {
+    label: 'تسویه',
+    items: [
+      {
+        label: 'نمای کلی تسویه',
+        href: ROUTES.settlements,
+        icon: LayoutDashboard,
+        permission: PERMISSIONS.FINANCE_SETTLEMENTS_READ,
+        exact: true,
+      },
+      {
+        label: 'بدهی تأمین‌کننده',
+        href: ROUTES.settlementPayables,
+        icon: FileSpreadsheet,
+        permission: PERMISSIONS.FINANCE_SETTLEMENTS_READ,
+      },
+      {
+        label: 'وام‌ها',
+        href: ROUTES.settlementLoans,
+        icon: Landmark,
+        permission: PERMISSIONS.FINANCE_SETTLEMENTS_READ,
+      },
+      {
+        label: 'تسویه کانال',
+        href: ROUTES.settlementChannels,
+        icon: Store,
+        permission: PERMISSIONS.FINANCE_SETTLEMENTS_READ,
+      },
+      {
+        label: 'مغایرت‌گیری',
+        href: ROUTES.settlementReconciliation,
+        icon: ListChecks,
+        permission: PERMISSIONS.FINANCE_RECONCILIATION_READ,
+      },
+      {
+        label: 'تاریخچه تسویه',
+        href: ROUTES.settlementAudit,
+        icon: History,
+        permission: PERMISSIONS.AUDIT_READ,
       },
     ],
   },
@@ -314,6 +383,12 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: 'کنترل',
     items: [
+      {
+        label: 'اشخاص',
+        href: ROUTES.parties,
+        icon: Users,
+        permission: PERMISSIONS.PARTY_READ,
+      },
       {
         label: 'تاریخچه تغییرات',
         href: ROUTES.audit,

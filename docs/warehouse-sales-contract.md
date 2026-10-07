@@ -57,15 +57,13 @@ Safety stock and channel allocation limits are extension points — not implemen
 
 ---
 
-## Reservation
-
-Future flow:
+## Reservation (Phase 5.3 live)
 
 ```text
-Sales Order created
-  → request reservation (sourceType=SALES_ORDER, sourceId=orderId)
+Sales Order confirmed / reserve
+  → request reservation (sourceType=SALES_ORDER, sourceId=orderId, sourceLineId=orderItemId)
   → Warehouse checks AVAILABLE
-  → Reservation created
+  → Reservation created (createInTx)
   → AVAILABLE decreases
   → physical On Hand unchanged
 ```
@@ -88,17 +86,15 @@ Release / expire / replace reservation must be first-class later.
 
 ---
 
-## Fulfillment
-
-Future flow:
+## Fulfillment (Phase 5.3 live)
 
 ```text
-Sales Order / Shipment ready
-  → Warehouse pick
-  → Warehouse issue (SALES_FULFILLMENT_OUT)
+SalesFulfillment COMPLETE
+  → InventoryLedger ISSUE (sourceType=SALES_FULFILLMENT)
   → physical On Hand decreases
-  → reservation released / consumed
-  → FIFO layers consumed (COGS facts for Profit Engine)
+  → reservation consumed (consumeInTx)
+  → FIFO layers consumed
+  → Finance AR recognition (same outer TX; no bank cash)
 ```
 
 Sales must **not**:
@@ -108,6 +104,8 @@ PATCH StockBalance
 create InventoryMovement directly
 edit FifoLayer
 ```
+
+Sales calls Warehouse services inside its outer transaction (`postMovementsInTx` / `createInTx` / `consumeInTx` / `releaseInTx`).
 
 ---
 

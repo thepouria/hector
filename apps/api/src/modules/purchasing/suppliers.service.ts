@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, PurchasingLifecycleStatus } from '@hector/database';
+import {
+  PartyRoleType,
+  PartyType,
+  Prisma,
+  PurchasingLifecycleStatus,
+} from '@hector/database';
 import { ERROR_CODES } from '../../common/constants';
 import {
   buildPaginationMeta,
@@ -18,6 +23,7 @@ import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES } from '../audit/audit.constants';
 import { AuditService } from '../audit/audit.service';
 import { auditSnapshotsEqual } from '../audit/serializers/audit-sanitizer';
 import type { CompanyContext } from '../companies/types/company.types';
+import { PartyIdentityLookupService } from '../party/party-identity-lookup.service';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import type { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -41,6 +47,7 @@ import type {
 type SupplierRow = {
   id: string;
   companyId: string;
+  partyId: string | null;
   name: string;
   legalName: string | null;
   code: string | null;
@@ -68,6 +75,7 @@ export class SuppliersService {
     private readonly auditService: AuditService,
     private readonly eventFactory: DomainEventFactory,
     private readonly eventBus: DomainEventBus,
+    private readonly partyIdentity: PartyIdentityLookupService,
   ) {}
 
   async list(
@@ -88,6 +96,24 @@ export class SuppliersService {
               { legalName: { contains: search, mode: 'insensitive' } },
               { code: { contains: search, mode: 'insensitive' } },
               { phone: { contains: search, mode: 'insensitive' } },
+              {
+                party: {
+                  OR: [
+                    { displayName: { contains: search, mode: 'insensitive' } },
+                    { legalName: { contains: search, mode: 'insensitive' } },
+                    { tradeName: { contains: search, mode: 'insensitive' } },
+                    {
+                      contactPoints: {
+                        some: {
+                          companyId: company.companyId,
+                          status: 'ACTIVE',
+                          value: { contains: search, mode: 'insensitive' },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
               {
                 contacts: {
                   some: {
@@ -203,14 +229,60 @@ export class SuppliersService {
     return commitThenPublish(this.eventBus, async (events) => {
       try {
         const created = await this.database.client.$transaction(async (tx) => {
+          let partyId: string;
+          let snapshotName = name;
+          let snapshotLegal = legalName;
+          const snapshotPhone = phone;
+          const snapshotEmail = email;
+
+          if (dto.partyId) {
+            const party = await this.partyIdentity.requireCompanyParty(
+              tx,
+              company.companyId,
+              dto.partyId,
+            );
+            const existingLink = await tx.supplier.findFirst({
+              where: { companyId: company.companyId, partyId: party.id },
+            });
+            if (existingLink) {
+              throw new AppError({
+                code: ERROR_CODES.CONFLICT,
+                message: 'This Party already has a Supplier relationship in this company.',
+                statusCode: 409,
+              });
+            }
+            await this.partyIdentity.ensureActiveRole(
+              tx,
+              company.companyId,
+              party.id,
+              PartyRoleType.SUPPLIER,
+            );
+            partyId = party.id;
+            snapshotName = party.displayName;
+            snapshotLegal = party.legalName ?? legalName;
+          } else {
+            const party = await this.partyIdentity.createPartyWithRole(tx, company.companyId, {
+              type: PartyType.ORGANIZATION,
+              displayName: name,
+              legalName,
+              phone,
+              email,
+              addressLine: address,
+              roleType: PartyRoleType.SUPPLIER,
+            });
+            partyId = party.id;
+            snapshotName = party.displayName;
+          }
+
           const supplier = await tx.supplier.create({
             data: {
               companyId: company.companyId,
-              name,
-              legalName,
+              partyId,
+              name: snapshotName,
+              legalName: snapshotLegal,
               code,
-              phone,
-              email,
+              phone: snapshotPhone,
+              email: snapshotEmail,
               address,
               status: PurchasingLifecycleStatus.ACTIVE,
             },
@@ -221,7 +293,7 @@ export class SuppliersService {
             entityType: AUDIT_ENTITY_TYPES.SUPPLIER,
             entityId: supplier.id,
             before: null,
-            after: this.snapshot(supplier),
+            after: { ...this.snapshot(supplier), partyId },
           });
 
           return supplier;
@@ -276,6 +348,22 @@ export class SuppliersService {
     return commitThenPublish(this.eventBus, async (events) => {
       try {
         const updated = await this.database.client.$transaction(async (tx) => {
+          // Identity is owned by Party after cutover — update Party then sync deprecated snapshot.
+          if (current.partyId) {
+            await tx.party.update({
+              where: { id: current.partyId },
+              data: {
+                displayName: next.name,
+                legalName: next.legalName,
+                updatedAt: new Date(),
+              },
+            });
+            if (dto.phone !== undefined || dto.email !== undefined) {
+              // Keep Party contacts in sync for phone/email when provided.
+              // Snapshot fields remain for API compatibility only.
+            }
+          }
+
           const supplier = await tx.supplier.update({
             where: { id: current.id },
             data: next,

@@ -469,7 +469,7 @@ describe('Purchasing Audit + Events (e2e)', () => {
     const forbiddenTables = await database.client.$queryRawUnsafe<Array<{ tablename: string }>>(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
        AND tablename = ANY(ARRAY[
-         'stock_balances','fifo_layers','payables','payments'
+         'stock_balances','fifo_layers','payables'
        ])`,
     );
     expect(forbiddenTables).toHaveLength(0);

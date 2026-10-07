@@ -42,6 +42,12 @@ export const ROUTES = {
   purchasingReturns: '/app/purchasing/returns',
   purchasingReturnNew: '/app/purchasing/returns/new',
   sales: '/app/sales',
+  salesOrders: '/app/sales/orders',
+  salesOrderNew: '/app/sales/orders/new',
+  salesCustomers: '/app/sales/customers',
+  salesCustomerNew: '/app/sales/customers/new',
+  salesChannels: '/app/sales/channels',
+  salesReturns: '/app/sales/returns',
   finance: '/app/finance',
   financeAudit: '/app/finance/audit',
   financeAccounts: '/app/finance/accounts',
@@ -75,6 +81,12 @@ export const ROUTES = {
   financeFxConversionNew: '/app/finance/fx/conversions/new',
   financeFxPositions: '/app/finance/fx/positions',
   settlements: '/app/settlements',
+  settlementPayables: '/app/settlements/payables',
+  settlementLoans: '/app/settlements/loans',
+  settlementChannels: '/app/settlements/channels',
+  settlementChannelNew: '/app/settlements/channels/new',
+  settlementReconciliation: '/app/settlements/reconciliation',
+  settlementAudit: '/app/settlements/audit',
   audit: '/app/audit',
   settings: '/app/settings',
   settingsCompany: '/app/settings/company',
@@ -82,6 +94,8 @@ export const ROUTES = {
   settingsRoles: '/app/settings/roles',
   settingsRolesNew: '/app/settings/roles/new',
   settingsSecurity: '/app/settings/security',
+  parties: '/app/parties',
+  partyNew: '/app/parties/new',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
@@ -128,6 +142,22 @@ export function financePayablePath(payableId: string): string {
 
 export function financeSettlementPath(settlementId: string): string {
   return `${ROUTES.financeSettlements}/${settlementId}`;
+}
+
+export function settlementPayablePath(payableId: string): string {
+  return `${ROUTES.settlementPayables}/${payableId}`;
+}
+
+export function settlementLoanPath(loanId: string): string {
+  return `${ROUTES.settlementLoans}/${loanId}`;
+}
+
+export function settlementChannelPath(channelSettlementId: string): string {
+  return `${ROUTES.settlementChannels}/${channelSettlementId}`;
+}
+
+export function settlementReconciliationPath(reconciliationId: string): string {
+  return `${ROUTES.settlementReconciliation}/${reconciliationId}`;
 }
 
 export function financeExpensesUnpaidPath(): string {
@@ -195,6 +225,28 @@ export function purchasingReturnNewPath(purchaseOrderId?: string): string {
 
 export function purchasingOrderPath(purchaseOrderId: string): string {
   return `${ROUTES.purchasingOrders}/${purchaseOrderId}`;
+}
+
+export function salesOrderPath(orderId: string): string {
+  return `${ROUTES.salesOrders}/${orderId}`;
+}
+
+export function salesCustomerPath(customerId: string): string {
+  return `${ROUTES.salesCustomers}/${customerId}`;
+}
+
+export function salesReturnPath(returnId: string): string {
+  return `${ROUTES.salesReturns}/${returnId}`;
+}
+
+export function salesReturnNewPath(salesOrderId?: string): string {
+  if (!salesOrderId) return `${ROUTES.salesReturns}?create=1`;
+  const params = new URLSearchParams({ salesOrderId, create: '1' });
+  return `${ROUTES.salesReturns}?${params.toString()}`;
+}
+
+export function partyPath(partyId: string): string {
+  return `${ROUTES.parties}/${partyId}`;
 }
 
 export function warehouseLocationsPath(warehouseId: string): string {

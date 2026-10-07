@@ -14,6 +14,7 @@ import {
 import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 describe('Finance Dashboard (e2e) Phase 4.11', () => {
   let app: INestApplication;
@@ -412,13 +413,11 @@ describe('Finance Dashboard (e2e) Phase 4.11', () => {
   }
 
   async function ensureSupplier(companyId: string): Promise<string> {
-    const supplier = await database.client.supplier.create({
-      data: {
-        companyId,
-        name: `Dash Supplier ${randomUUID().slice(0, 8)}`,
-        code: `DS-${randomUUID().slice(0, 6).toUpperCase()}`,
-        status: 'ACTIVE',
-      },
+    const supplier = await createPartyLinkedSupplier(database.client, {
+      companyId,
+      name: `Dash Supplier ${randomUUID().slice(0, 8)}`,
+      code: `DS-${randomUUID().slice(0, 6).toUpperCase()}`,
+      status: 'ACTIVE',
     });
     createdSupplierIds.push(supplier.id);
     return supplier.id;

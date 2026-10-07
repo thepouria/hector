@@ -512,6 +512,9 @@ export class InventoryCostLayersService {
       movementId: movement.id,
       kind,
       preferPurchaseOrderItemId,
+      // Prefer layers matching the physical ISSUE/ADJUSTMENT batch so
+      // balance↔layer QTY_RECON stays consistent (batch is provenance; FIFO pool remains WH+SKU+class).
+      preferBatchId: movement.batchId ?? undefined,
       createDestination: null,
     });
   }
@@ -567,6 +570,7 @@ export class InventoryCostLayersService {
       movementId: string;
       kind: InventoryLayerConsumptionKind;
       preferPurchaseOrderItemId?: string;
+      preferBatchId?: string;
       createDestination: null | {
         warehouseId: string;
         classification: StockClassification;
@@ -603,13 +607,20 @@ export class InventoryCostLayersService {
       orderBy: [{ receivedAt: 'asc' }, { id: 'asc' }],
     });
 
-    // Provenance-first for supplier returns, then FIFO for the rest.
+    // Provenance-first (supplier return PO line / physical batch), then FIFO.
     const ordered = [...layers];
-    if (input.preferPurchaseOrderItemId) {
+    if (input.preferPurchaseOrderItemId || input.preferBatchId) {
       ordered.sort((a, b) => {
-        const aMatch = a.purchaseOrderItemId === input.preferPurchaseOrderItemId ? 0 : 1;
-        const bMatch = b.purchaseOrderItemId === input.preferPurchaseOrderItemId ? 0 : 1;
-        if (aMatch !== bMatch) return aMatch - bMatch;
+        if (input.preferPurchaseOrderItemId) {
+          const aPo = a.purchaseOrderItemId === input.preferPurchaseOrderItemId ? 0 : 1;
+          const bPo = b.purchaseOrderItemId === input.preferPurchaseOrderItemId ? 0 : 1;
+          if (aPo !== bPo) return aPo - bPo;
+        }
+        if (input.preferBatchId) {
+          const aBatch = a.batchId === input.preferBatchId ? 0 : 1;
+          const bBatch = b.batchId === input.preferBatchId ? 0 : 1;
+          if (aBatch !== bBatch) return aBatch - bBatch;
+        }
         const t = a.receivedAt.getTime() - b.receivedAt.getTime();
         if (t !== 0) return t;
         return a.id.localeCompare(b.id);

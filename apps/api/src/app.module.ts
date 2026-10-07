@@ -18,6 +18,10 @@ import { PurchasingModule } from './modules/purchasing/purchasing.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { PartyModule } from './modules/party/party.module';
+import { SettlementModule } from './modules/settlement/settlement.module';
+import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import type { RequestWithId } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -116,6 +120,10 @@ import type { RequestWithId } from './common/middleware/request-id.middleware';
     PurchasingModule,
     WarehouseModule,
     FinanceModule,
+    SalesModule,
+    PartyModule,
+    SettlementModule,
+    ReconciliationModule,
   ],
   providers: [
     {

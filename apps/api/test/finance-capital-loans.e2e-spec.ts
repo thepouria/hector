@@ -72,6 +72,42 @@ describe('Finance Capital + Loans (e2e)', () => {
       await database.client.capitalContributionSequence.deleteMany({
         where: { companyId: { in: tempCompanyIds } },
       });
+      await database.client.partner.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyRelationship.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyRole.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyContactPoint.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyAddress.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyMigrationMap.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.party.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partySequence.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.journalLine.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.journalEntry.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.journalEntrySequence.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.ledgerAccount.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
       await database.client.auditLog.deleteMany({
         where: { companyId: { in: tempCompanyIds } },
       });
@@ -359,6 +395,9 @@ describe('Finance Capital + Loans (e2e)', () => {
         lenderName: 'Lender',
         currency: 'USD',
         contractedPrincipal: '5000',
+        referenceFxRate: '250000',
+        referenceFxBaseCurrency: 'USD',
+        referenceFxQuoteCurrency: 'IRR',
         firstDisbursement: { accountId: tiny.usdAccountId, amount: '5000' },
         postImmediately: true,
         requestId: randomUUID(),
@@ -496,6 +535,9 @@ describe('Finance Capital + Loans (e2e)', () => {
         lenderName: 'Concurrent Lender',
         currency: 'USD',
         contractedPrincipal: '10000',
+        referenceFxRate: '250000',
+        referenceFxBaseCurrency: 'USD',
+        referenceFxQuoteCurrency: 'IRR',
         firstDisbursement: { accountId: ctx.usdAccountId, amount: '10000' },
         postImmediately: true,
         requestId: randomUUID(),

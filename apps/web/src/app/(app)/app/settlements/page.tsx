@@ -1,22 +1,16 @@
 import type { Metadata } from 'next';
-import { PlaceholderModule } from '@/components/feedback/states';
+import { Suspense } from 'react';
+import { PageSkeleton } from '@/components/feedback/states';
+import { SettlementDashboardPage } from '@/features/settlement/settlement-dashboard-page';
 
 export const metadata: Metadata = {
-  title: 'تسویه‌ها',
+  title: 'مرکز تسویه',
 };
 
 export default function Page() {
   return (
-    <PlaceholderModule
-      title="تسویه‌ها"
-      description="مغایرت‌گیری و تسویه بازارگاه"
-      upcoming={[
-          'صورتحساب خانومی/دیجی‌کالا',
-          'کمیسیون',
-          'مرجوعی',
-          'جریمه',
-          'مغایرت',
-      ]}
-    />
+    <Suspense fallback={<PageSkeleton />}>
+      <SettlementDashboardPage />
+    </Suspense>
   );
 }

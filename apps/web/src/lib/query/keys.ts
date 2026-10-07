@@ -281,6 +281,48 @@ export const financeDashboardKeys = {
     ['finance-dashboard', companyId, 'detail', filters] as const,
 };
 
+export const salesChannelKeys = {
+  all: (companyId: string) => ['sales-channels', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['sales-channels', companyId, 'list', filters] as const,
+  detail: (companyId: string, channelId: string) =>
+    ['sales-channels', companyId, 'detail', channelId] as const,
+};
+
+export const salesCustomerKeys = {
+  all: (companyId: string) => ['sales-customers', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['sales-customers', companyId, 'list', filters] as const,
+  detail: (companyId: string, customerId: string) =>
+    ['sales-customers', companyId, 'detail', customerId] as const,
+};
+
+export const salesOrderKeys = {
+  all: (companyId: string) => ['sales-orders', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['sales-orders', companyId, 'list', filters] as const,
+  detail: (companyId: string, orderId: string) =>
+    ['sales-orders', companyId, 'detail', orderId] as const,
+};
+
+export const salesReturnKeys = {
+  all: (companyId: string) => ['sales-returns', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['sales-returns', companyId, 'list', filters] as const,
+  detail: (companyId: string, returnId: string) =>
+    ['sales-returns', companyId, 'detail', returnId] as const,
+};
+
+export const salesKeys = {
+  all: (companyId: string) => ['sales', companyId] as const,
+  dashboard: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['sales', companyId, 'dashboard', filters] as const,
+  channels: salesChannelKeys,
+  customers: salesCustomerKeys,
+  orders: salesOrderKeys,
+  returns: salesReturnKeys,
+};
+
 export const financeAuditKeys = {
   all: (companyId: string) => ['finance-audit', companyId] as const,
   list: (companyId: string, filters: Record<string, unknown> = {}) =>
@@ -390,4 +432,37 @@ export const financeTransferKeys = {
     ['finance-transfers', companyId, 'list', filters] as const,
   detail: (companyId: string, id: string) =>
     ['finance-transfers', companyId, 'detail', id] as const,
+};
+
+export const partyKeys = {
+  all: (companyId: string) => ['parties', companyId] as const,
+  list: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['parties', companyId, 'list', filters] as const,
+  detail: (companyId: string, partyId: string) =>
+    ['parties', companyId, 'detail', partyId] as const,
+  related: (companyId: string, partyId: string) =>
+    ['parties', companyId, 'related', partyId] as const,
+  duplicates: (companyId: string, payload: Record<string, unknown>) =>
+    ['parties', companyId, 'duplicates', payload] as const,
+};
+
+export const settlementKeys = {
+  all: (companyId: string) => ['settlements', companyId] as const,
+  dashboard: (companyId: string) => ['settlements', companyId, 'dashboard'] as const,
+  payables: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['settlements', companyId, 'payables', filters] as const,
+  payable: (companyId: string, payableId: string) =>
+    ['settlements', companyId, 'payable', payableId] as const,
+  loans: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['settlements', companyId, 'loans', filters] as const,
+  loan: (companyId: string, loanId: string) =>
+    ['settlements', companyId, 'loan', loanId] as const,
+  channels: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['settlements', companyId, 'channels', filters] as const,
+  channel: (companyId: string, id: string) =>
+    ['settlements', companyId, 'channel', id] as const,
+  reconciliations: (companyId: string, filters: Record<string, unknown> = {}) =>
+    ['settlements', companyId, 'reconciliations', filters] as const,
+  reconciliation: (companyId: string, id: string) =>
+    ['settlements', companyId, 'reconciliation', id] as const,
 };

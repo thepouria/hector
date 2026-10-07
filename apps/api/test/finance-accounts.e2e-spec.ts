@@ -94,6 +94,33 @@ describe('Finance Accounts (e2e)', () => {
         await database.client.role.deleteMany({
           where: { companyId: { in: tempCompanyIds } },
         });
+        await database.client.journalLine.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.journalEntry.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.journalEntrySequence.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.ledgerAccount.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.partyRole.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.partyContactPoint.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.partyAddress.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.party.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
+        await database.client.partySequence.deleteMany({
+          where: { companyId: { in: tempCompanyIds } },
+        });
         await database.client.company.deleteMany({
           where: { id: { in: tempCompanyIds } },
         });

@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { CatalogModule } from '../catalog/catalog.module';
 import { AuditModule } from '../audit/audit.module';
 import { FinanceModule } from '../finance/finance.module';
+import { PartyModule } from '../party/party.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { PurchaseReceivingContract } from './contracts/purchase-receiving.contract';
 import { PurchaseReceivingService } from './contracts/purchase-receiving.service';
@@ -31,12 +32,14 @@ import { SuppliersService } from './suppliers.service';
  * Phase 2.12: Purchasing API consolidation (HTTP boundary; domain rules stay in services)
  * Phase 2.14: Purchase Dashboard read model
  * Phase 4.7: Purchase cost treatment + allocation (imports Finance for PERIOD_EXPENSE)
+ * Phase 5.5.2: Supplier ↔ Party identity linking
  */
 @Module({
   imports: [
     AuditModule,
     CatalogModule,
     FinanceModule,
+    PartyModule,
     forwardRef(() => RbacModule),
   ],
   controllers: [

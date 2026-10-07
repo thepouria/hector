@@ -13,6 +13,7 @@ import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { DOMAIN_EVENTS, DomainEventBus } from '../src/infrastructure/events';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 const BASE = '/api/v1/purchasing/purchase-orders';
 const NUMBER_RE = /^PO-\d{4}-\d{6,}$/;
@@ -169,9 +170,7 @@ describe('Purchase Orders (e2e)', () => {
   }
 
   async function newSupplier(label = 'PO Supplier', status: PurchasingLifecycleStatus = 'ACTIVE') {
-    return database.client.supplier.create({
-      data: { companyId: pishtehId, name: `${label} ${Date.now()}-${Math.random()}`, status },
-    });
+    return createPartyLinkedSupplier(database.client, { companyId: pishtehId, name: `${label} ${Date.now()}-${Math.random()}`, status });
   }
 
   async function newOffer(input: {
@@ -1108,8 +1107,10 @@ describe('Purchase Orders (e2e)', () => {
   it('supports Persian search, filters, sorting, and is injection-safe', async () => {
     const token = await login(ownerEmail);
     const h = auth(token);
-    const supplier = await database.client.supplier.create({
-      data: { companyId: pishtehId, name: `پخش‌کننده جستجو ${Date.now()}`, status: 'ACTIVE' },
+    const supplier = await createPartyLinkedSupplier(database.client, {
+      companyId: pishtehId,
+      name: `پخش‌کننده جستجو ${Date.now()}`,
+      status: PurchasingLifecycleStatus.ACTIVE,
     });
     const po = await createPo(token, {
       supplierId: supplier.id,

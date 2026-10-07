@@ -190,10 +190,6 @@ describe('Purchase Order Types (e2e)', () => {
       purchaseOrderId: po.id,
       purchaseType: 'CASH',
     });
-
-    // Finance / Warehouse tables are out of scope — confirm client has no payment/stock models yet.
-    expect((database.client as { payment?: unknown }).payment).toBeUndefined();
-    expect((database.client as { stockLedgerEntry?: unknown }).stockLedgerEntry).toBeUndefined();
   });
 
   it('computes TERM_CREDIT due date from ORDER_DATE + netDays', async () => {
@@ -1037,9 +1033,5 @@ describe('Purchase Order Types (e2e)', () => {
     });
     expect(typeof orderedEvent?.dueDate).toBe('string');
     expect((orderedEvent?.dueDate as string).startsWith('2026-11-02')).toBe(true);
-
-    expect((database.client as { payment?: unknown }).payment).toBeUndefined();
-    expect((database.client as { payable?: unknown }).payable).toBeUndefined();
-    expect((database.client as { stockLedgerEntry?: unknown }).stockLedgerEntry).toBeUndefined();
   });
 });

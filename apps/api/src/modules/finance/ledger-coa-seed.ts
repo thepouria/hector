@@ -44,6 +44,20 @@ const SYSTEM_COA: Array<{
     description: 'Accounts payable to suppliers',
   },
   {
+    systemKey: LEDGER_SYSTEM_KEYS.CUSTOMER_RECEIVABLE,
+    code: '1100',
+    name: 'Customer Receivable',
+    type: LedgerAccountType.ASSET,
+    description: 'Accounts receivable from customers (sales recognition)',
+  },
+  {
+    systemKey: LEDGER_SYSTEM_KEYS.CHANNEL_RECEIVABLE,
+    code: '1110',
+    name: 'Channel Receivable',
+    type: LedgerAccountType.ASSET,
+    description: 'Marketplace/channel clearing receivable (not bank cash)',
+  },
+  {
     systemKey: LEDGER_SYSTEM_KEYS.LOAN_PAYABLE,
     code: '2200',
     name: 'Loan Payable',

@@ -19,6 +19,7 @@ import {
 import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 describe('Finance Liability Settlements (e2e) Phase 4.9', () => {
   let app: INestApplication;
@@ -259,12 +260,10 @@ describe('Finance Liability Settlements (e2e) Phase 4.9', () => {
       where: { companyId, status: 'ACTIVE' },
     });
     if (existing) return existing.id;
-    const created = await database.client.supplier.create({
-      data: {
-        companyId,
-        code: `SET-${Date.now().toString(36).toUpperCase()}`,
-        name: 'Settlement E2E Supplier',
-      },
+    const created = await createPartyLinkedSupplier(database.client, {
+      companyId,
+      code: `SET-${Date.now().toString(36).toUpperCase()}`,
+      name: 'Settlement E2E Supplier',
     });
     return created.id;
   }

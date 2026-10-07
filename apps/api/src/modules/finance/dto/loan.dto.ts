@@ -64,6 +64,18 @@ export class CreateLoanDto {
   @MaxLength(LOAN_LENDER_NAME_MAX_LENGTH)
   lenderName!: string;
 
+  /** Canonical lender Party (same company). Preferred over free-text identity. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  lenderPartyId?: string;
+
+  /** Borrower Party when Hector is the lender (receivable loan). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  borrowerPartyId?: string;
+
   @ApiProperty({ enum: CurrencyCode })
   @IsEnum(CurrencyCode)
   currency!: CurrencyCode;

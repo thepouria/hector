@@ -19,6 +19,7 @@ import { DOMAIN_EVENTS, DomainEventBus } from '../src/infrastructure/events';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 import { cleanupPayablesForGoodsReceipts } from './helpers/payable-cleanup';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 describe('Goods Receipts (e2e)', () => {
   let app: INestApplication;
@@ -711,12 +712,10 @@ describe('Goods Receipts (e2e)', () => {
           isDefault: true,
         },
       });
-      const supplier = await database.client.supplier.create({
-        data: {
-          companyId: company.id,
-          name: 'Perf Supplier',
-          code: 'PERF-SUP',
-        },
+      const supplier = await createPartyLinkedSupplier(database.client, {
+        companyId: company.id,
+        name: 'Perf Supplier',
+        code: 'PERF-SUP',
       });
       const product = await database.client.product.create({
         data: {

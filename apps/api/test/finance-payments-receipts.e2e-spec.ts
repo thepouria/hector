@@ -14,6 +14,7 @@ import {
 import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 describe('Finance Payments + Receipts + Transfers (e2e)', () => {
   let app: INestApplication;
@@ -105,6 +106,33 @@ describe('Finance Payments + Receipts + Transfers (e2e)', () => {
         where: { companyId: { in: tempCompanyIds } },
       });
       await database.client.role.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.journalLine.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.journalEntry.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.journalEntrySequence.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.ledgerAccount.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyRole.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyContactPoint.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partyAddress.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.party.deleteMany({
+        where: { companyId: { in: tempCompanyIds } },
+      });
+      await database.client.partySequence.deleteMany({
         where: { companyId: { in: tempCompanyIds } },
       });
       await database.client.company.deleteMany({
@@ -708,12 +736,10 @@ describe('Finance Payments + Receipts + Transfers (e2e)', () => {
     const companyId = await createTempCompany();
     const { bankId } = await createFundedIrrPair(token, companyId);
 
-    const supplier = await database.client.supplier.create({
-      data: {
-        companyId,
-        code: `SUP-${Date.now().toString(36).toUpperCase()}`,
-        name: 'E2E Supplier Pay Boundary',
-      },
+    const supplier = await createPartyLinkedSupplier(database.client, {
+      companyId,
+      code: `SUP-${Date.now().toString(36).toUpperCase()}`,
+      name: 'E2E Supplier Pay Boundary',
     });
 
     const opening = await request(app.getHttpServer())

@@ -75,7 +75,21 @@ const ACTION_LABELS: Record<string, string> = {
   PURCHASE_RETURN_CREATED: 'ایجاد برگشت خرید',
   PURCHASE_RETURN_UPDATED: 'ویرایش برگشت خرید',
   PURCHASE_RETURN_APPROVED: 'تأیید برگشت خرید',
-  PURCHASE_RETURN_CANCELLED: 'لغو برگشت خرید',
+  PARTY_CREATED: 'ایجاد شخص',
+  PARTY_UPDATED: 'ویرایش هویت شخص',
+  PARTY_ACTIVATED: 'فعال‌سازی شخص',
+  PARTY_DEACTIVATED: 'غیرفعال‌سازی شخص',
+  PARTY_ARCHIVED: 'بایگانی شخص',
+  PARTY_CONTACT_CREATED: 'افزودن تماس شخص',
+  PARTY_CONTACT_UPDATED: 'ویرایش تماس شخص',
+  PARTY_CONTACT_DEACTIVATED: 'غیرفعال‌سازی تماس شخص',
+  PARTY_CONTACT_PRIMARY_CHANGED: 'تغییر تماس اصلی شخص',
+  PARTY_ADDRESS_CREATED: 'افزودن آدرس شخص',
+  PARTY_ADDRESS_UPDATED: 'ویرایش آدرس شخص',
+  PARTY_ADDRESS_ARCHIVED: 'بایگانی آدرس شخص',
+  PARTY_ADDRESS_PRIMARY_CHANGED: 'تغییر آدرس اصلی شخص',
+  PARTY_ROLE_ADDED: 'افزودن نقش شخص',
+  PARTY_ROLE_DEACTIVATED: 'غیرفعال‌سازی نقش شخص',
 };
 
 const FIELD_LABELS: Record<string, string> = {

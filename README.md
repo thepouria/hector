@@ -171,6 +171,8 @@ Docs:
 
 **Status: Phase 4.10 COMPLETE — READY FOR 4.11** (Finance dashboard; do not invent Profit here)
 
+Sales (Phase 5.1) owns Channel + Customer master only — Receivables / marketplace settlement remain Finance (later) / Phase 6. See `docs/sales-architecture.md`.
+
 - `docs/finance-api-ui.md` — FIN-UI-001…024 + navigation/API map
 - `docs/phase-4.10-finance-api-ui-report.md` — Phase 4.10 report (45 sections)
 - `docs/finance-liability-settlement.md` — FIN-SET-001…014 (Phase 4.9)
@@ -202,11 +204,51 @@ pnpm db:check:warehouse   # warehouse + inventory workflow integrity (0 violatio
 pnpm db:check:inventory   # StockBalance = SUM(Ledger) per position
 pnpm db:check:valuation   # reservations + FIFO + valuation
 pnpm inventory:reconcile  # unified Phase 3.18 read-only gate (exit 0 = OK)
+pnpm db:check:sales       # Sales integrity
+pnpm sales:integrity      # alias
+pnpm party:integrity      # Party + domain-link integrity (Phase 5.5.2)
+pnpm settlement:integrity # Settlement integrity (Phase 6.1 + 6.2 + 6.3)
+pnpm reconciliation:integrity # Reconciliation integrity (Phase 6.4)
+pnpm phase6:integrity         # Settlement + Reconciliation aggregate
+pnpm finance:reconcile        # Finance + Settlement + Reconciliation
+pnpm party:reconcile      # read-only cross-domain Party reconciliation
+pnpm party:migrate --dry-run
+pnpm party:migrate --apply
 ```
+
+### Sales (Phase 5 — CLOSED) + Party Master (Phase 5.5 — COMPLETE)
+
+**Phase 5 Sales: CLOSED.** **Phase 5.5 Party Master: COMPLETE** (5.5.1–5.5.3).
+
+- UI: `/app/parties` — list, create, detail (identity / contacts / addresses / roles / related entities / activity)
+- API: `/api/v1/parties` — semantic ops, `POST /duplicate-check`, `GET /:id/related-entities` (RBAC-aware)
+- `docs/sales-architecture.md` — ownership + SalesOrder/Return/Fulfillment + formulas + lifecycle
+- `docs/sales-recognition.md` — fulfillment-scoped AR recognition policy
+- `docs/sales-invariants.md` — SALE-001…052
+- `docs/party-architecture.md` — Party Master + domain linking
+- `docs/party-domain-linking.md` — Supplier/Customer/Partner/Finance Party FKs
+- `docs/party-migration.md` — migrate / integrity / reconcile
+- `docs/party-invariants.md` — PARTY-001… + PARTY-LINK-001…025
+- `docs/phase-5.5.3-party-master-final-qa-report.md` — final QA gate
+
+### Settlement / Reconciliation (Phase 6 — CLOSED)
+
+Generic Settlement / Item / Allocation foundation with Supplier Payable, Loan, FX,
+**Channel Settlement**, **Reconciliation Engine**, and **Settlement Center UI/Dashboard**.
+
+- UI: `/app/settlements` — overview, payables, loans, channels, reconciliation, audit
+- API: `/api/v1/settlements` — core + payables/loans + channels + `dashboard`
+- API: `/api/v1/reconciliations` — open, match, candidates, close-matching, discrepancies, resolve
+- `docs/settlement-architecture.md` — ownership + FX + Channel + Reconciliation + SoT boundaries
+- `docs/settlement-invariants.md` — STL-001…078 + REC-001…030 + SET-001…025
+- `docs/settlement-ui.md` — operator UI map
+- `docs/reconciliation.md` — Phase 6.4 engine
+- `docs/phase-6-settlement-reconciliation-final-report.md` — Phase 6 final report
+- Integrity: `pnpm settlement:integrity` · `pnpm reconciliation:integrity` · `pnpm phase6:integrity`
 
 Phase 2 receiving port (already implemented): `apps/api/src/modules/purchasing/contracts/`.
 
-Ownership: Catalog = what · Purchasing = ordered · Warehouse = physical · Finance = money · Sales = orders.
+Ownership: Catalog = what · Purchasing = ordered · Warehouse = physical · Finance = money · Sales = channels/customers/orders/execution · Party = identity · **Settlement = allocation/matching**.
 
 Auth docs: `docs/architecture/authentication.md`.
 

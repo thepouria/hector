@@ -14,6 +14,7 @@ import {
 import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
+import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 /**
  * Phase 4.12 — Dashboard snapshot must equal canonical SQL truth.
@@ -323,13 +324,11 @@ describe('Finance Dashboard reconciliation (e2e) Phase 4.12', () => {
       .expect(201);
     createdTransferIds.push(transfer.body.data.id);
 
-    const supplier = await database.client.supplier.create({
-      data: {
-        companyId: ctx.companyId,
-        name: `Reconcile Supplier ${randomUUID().slice(0, 8)}`,
-        code: `RS-${randomUUID().slice(0, 6).toUpperCase()}`,
-        status: 'ACTIVE',
-      },
+    const supplier = await createPartyLinkedSupplier(database.client, {
+      companyId: ctx.companyId,
+      name: `Reconcile Supplier ${randomUUID().slice(0, 8)}`,
+      code: `RS-${randomUUID().slice(0, 6).toUpperCase()}`,
+      status: 'ACTIVE',
     });
     createdSupplierIds.push(supplier.id);
 

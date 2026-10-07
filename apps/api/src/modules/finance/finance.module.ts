@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { PartyModule } from '../party/party.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { AccountTransfersController } from './account-transfers.controller';
 import { AccountTransfersService } from './account-transfers.service';
@@ -34,6 +35,8 @@ import { SettlementService } from './settlement.service';
 import { FinanceDashboardController } from './finance-dashboard.controller';
 import { FinanceDashboardService } from './finance-dashboard.service';
 import { FinanceAuditController } from './finance-audit.controller';
+import { CustomerReceivablesController } from './customer-receivables.controller';
+import { CustomerReceivablesService } from './customer-receivables.service';
 
 /**
  * Finance domain module.
@@ -41,12 +44,15 @@ import { FinanceAuditController } from './finance-audit.controller';
  * Phase 4.8: Ledger accounts + Journal posting foundation
  * Phase 4.9: Liability Settlement (Supplier AP ↔ Payment)
  * Phase 4.11: Finance Dashboard + Finance Audit
+ * Phase 5.3: Customer / Channel receivable recognition (Sales → Finance)
+ * Phase 5.5.2: Counterparty Party linking (lender/borrower/contributor)
  *
  * Must NOT import WarehouseModule (Warehouse → Finance only).
+ * Must NOT import SalesModule (Sales → Finance only).
  * Purchasing may import Finance for PERIOD_EXPENSE recognition + journals.
  */
 @Module({
-  imports: [AuditModule, forwardRef(() => RbacModule)],
+  imports: [AuditModule, PartyModule, forwardRef(() => RbacModule)],
   controllers: [
     FinanceDashboardController,
     FinanceAuditController,
@@ -64,6 +70,7 @@ import { FinanceAuditController } from './finance-audit.controller';
     LedgerAccountsController,
     JournalsController,
     FinanceLedgerReportsController,
+    CustomerReceivablesController,
   ],
   providers: [
     FinanceDashboardService,
@@ -82,6 +89,7 @@ import { FinanceAuditController } from './finance-audit.controller';
     ExpensesService,
     LedgerAccountsService,
     JournalPostingService,
+    CustomerReceivablesService,
   ],
   exports: [
     FinanceDashboardService,
@@ -100,6 +108,7 @@ import { FinanceAuditController } from './finance-audit.controller';
     ExpensesService,
     LedgerAccountsService,
     JournalPostingService,
+    CustomerReceivablesService,
   ],
 })
 export class FinanceModule {}

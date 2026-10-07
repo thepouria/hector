@@ -39,6 +39,23 @@ import {
   PurchaseReturnStatus,
   PurchaseTermBasis,
   PurchasingLifecycleStatus,
+  SalesChannelType,
+  SalesChannelStatus,
+  CustomerType,
+  CustomerStatus,
+  PartyType,
+  PartyStatus,
+  PartyContactPointType,
+  PartyContactPointStatus,
+  PartyAddressType,
+  PartyRoleType,
+  PartyRoleStatus,
+  PartnerStatus,
+  PartyRelationshipType,
+  PartyRelationshipStatus,
+  SalesOrderPaymentTermType,
+  SalesOrderSource,
+  SalesOrderStatus,
   UserStatus,
   WarehouseLocationType,
   WarehouseStatus,
@@ -303,6 +320,11 @@ async function main(): Promise<void> {
     await seedCatalogForSecondary(prisma, secondary.id);
     await seedSuppliersForPishteh(prisma, company.id);
     await seedSuppliersForSecondary(prisma, secondary.id);
+    await seedSalesChannelsForPishteh(prisma, company.id);
+    await seedSalesForSecondary(prisma, secondary.id);
+    await seedSalesOrdersForPishteh(prisma, company.id);
+    await seedPartiesForPishteh(prisma, company.id);
+    await seedPartiesForSecondary(prisma, secondary.id);
     await seedSupplierOffersForPishteh(prisma, company.id);
     await seedSupplierOffersForSecondary(prisma, secondary.id);
     await seedPurchaseOrdersForPishteh(prisma, company.id);
@@ -310,6 +332,8 @@ async function main(): Promise<void> {
     await seedWarehousesForSecondary(prisma, secondary.id);
     await seedFinanceAccountsForPishteh(prisma, company.id);
     await seedFinanceCapitalLoansForPishteh(prisma, company.id);
+    await seedPartyDomainLinksForCompany(prisma, company.id);
+    await seedPartyDomainLinksForCompany(prisma, secondary.id);
     await seedFinanceFxRatesForPishteh(prisma, company.id);
     await seedFinancePaymentsReceiptsForPishteh(prisma, company.id);
     await seedExpenseCategoriesForCompany(prisma, company.id);
@@ -333,6 +357,15 @@ async function main(): Promise<void> {
       'Product attribute definitions seeded (Pishteh + Demo B isolation sample).',
     );
     console.log('Supplier Master sample data seeded (Pishteh + Demo B isolation sample).');
+    console.log(
+      'Sales Channel + Customer Master seeded (WEBSITE/KHANOUMI/DIGIKALA/SNAPP_SHOP/WHOLESALE/MANUAL + CUS-DEMO; Demo B isolation).',
+    );
+    console.log(
+      'Party Master + domain links seeded (Supplier/Customer/Partner/Lender via Party; CONTACT_FOR for supplier contacts).',
+    );
+    console.log(
+      'Sales Order sample seeded (DRAFT wholesale multi-SKU for Pishteh; idempotent by requestId).',
+    );
     console.log(
       'Purchase Order samples seeded (CASH, TERM 10/30/FIXED, FX 30-day, costs, legacy ORDERED).',
     );
@@ -367,6 +400,11 @@ async function main(): Promise<void> {
     await seedPutawaysForPishteh(prisma, company.id);
     console.log(
       'Putaway samples seeded (LOC-A-03; GRN-PUTAWAY-DEMO 100 received; PUT-000001 completed 40 → A-03; remaining 60).',
+    );
+    // Re-run AP recognition after putaway/demo GRNs that post after the first payables pass.
+    await seedFinanceSupplierPayablesForPishteh(prisma, company.id);
+    console.log(
+      'Finance Supplier Payables re-synced after warehouse POSTED GRN fixtures.',
     );
     await seedInventoryLedgerForPishteh(prisma, company.id);
     console.log(
@@ -5180,7 +5218,7 @@ async function seedSuppliersForPishteh(prisma: PrismaClient, companyId: string):
   await upsertSupplierContact(prisma, companyId, tehran.id, {
     name: 'آقای رضایی',
     role: 'فروش',
-    mobile: '09121234567',
+    mobile: '09123334455',
     isPrimary: true,
   });
   await upsertSupplierContact(prisma, companyId, tehran.id, {
@@ -5216,6 +5254,842 @@ async function seedSuppliersForSecondary(prisma: PrismaClient, companyId: string
     name: 'Demo B Supplier',
     code: 'DEMO-SUP-B',
     phone: '09120000000',
+  });
+}
+
+/** Phase 5.5.1 — idempotent Party Master samples (identity only; no domain links). */
+async function seedPartiesForPishteh(prisma: PrismaClient, companyId: string): Promise<void> {
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'pouria@hector.local' } });
+  await prisma.partySequence.upsert({
+    where: { companyId },
+    update: {},
+    create: { companyId, nextValue: 1 },
+  });
+
+  const individual = await upsertSeedParty(prisma, {
+    companyId,
+    partyCode: 'PTY-000001',
+    type: PartyType.INDIVIDUAL,
+    displayName: 'احمد رضایی',
+    firstName: 'احمد',
+    lastName: 'رضایی',
+    createdById: owner.id,
+  });
+  await upsertSeedContact(prisma, {
+    companyId,
+    partyId: individual.id,
+    type: PartyContactPointType.MOBILE,
+    value: '09121234567',
+    normalizedValue: '09121234567',
+    isPrimary: true,
+  });
+  await upsertSeedContact(prisma, {
+    companyId,
+    partyId: individual.id,
+    type: PartyContactPointType.EMAIL,
+    value: 'ahmad@example.com',
+    normalizedValue: 'ahmad@example.com',
+    isPrimary: true,
+  });
+  await upsertSeedAddress(prisma, {
+    companyId,
+    partyId: individual.id,
+    label: 'Home',
+    type: PartyAddressType.HOME,
+    addressLine1: 'تهران',
+    isPrimary: true,
+  });
+  for (const roleType of [
+    PartyRoleType.SUPPLIER,
+    PartyRoleType.CUSTOMER,
+    PartyRoleType.PARTNER,
+    PartyRoleType.LENDER,
+  ]) {
+    await upsertSeedRole(prisma, { companyId, partyId: individual.id, roleType });
+  }
+
+  const org = await upsertSeedParty(prisma, {
+    companyId,
+    partyCode: 'PTY-000002',
+    type: PartyType.ORGANIZATION,
+    displayName: 'Essence Distributor',
+    legalName: 'Essence Distributor Co.',
+    tradeName: 'Essence Distributor',
+    createdById: owner.id,
+  });
+  await upsertSeedContact(prisma, {
+    companyId,
+    partyId: org.id,
+    type: PartyContactPointType.PHONE,
+    value: '02188776655',
+    normalizedValue: '02188776655',
+    isPrimary: true,
+  });
+  await upsertSeedAddress(prisma, {
+    companyId,
+    partyId: org.id,
+    label: 'Head Office',
+    type: PartyAddressType.OFFICE,
+    addressLine1: 'Tehran Warehouse District',
+    isPrimary: true,
+  });
+  await upsertSeedRole(prisma, {
+    companyId,
+    partyId: org.id,
+    roleType: PartyRoleType.SUPPLIER,
+  });
+
+  // Keep sequence ahead of seeded codes so runtime allocation never collides.
+  // Never lower nextValue on re-seed (higher codes may already exist from domain linking).
+  const currentSeq = await prisma.partySequence.findUnique({ where: { companyId } });
+  const minNext = 3;
+  await prisma.partySequence.upsert({
+    where: { companyId },
+    update: {
+      nextValue: Math.max(currentSeq?.nextValue ?? minNext, minNext),
+    },
+    create: { companyId, nextValue: minNext },
+  });
+
+  // Explicit Partner relationship for Ahmad (ownership % deferred to Phase 10).
+  await prisma.partner.upsert({
+    where: {
+      companyId_partyId: { companyId, partyId: individual.id },
+    },
+    update: { status: PartnerStatus.ACTIVE, archivedAt: null },
+    create: {
+      companyId,
+      partyId: individual.id,
+      code: 'PRT-AHMAD',
+      status: PartnerStatus.ACTIVE,
+      notes: 'SEED: sample partner relationship (governance deferred)',
+    },
+  });
+}
+
+async function seedPartiesForSecondary(prisma: PrismaClient, companyId: string): Promise<void> {
+  await prisma.partySequence.upsert({
+    where: { companyId },
+    update: {},
+    create: { companyId, nextValue: 1 },
+  });
+  await upsertSeedParty(prisma, {
+    companyId,
+    partyCode: 'PTY-000001',
+    type: PartyType.INDIVIDUAL,
+    displayName: 'Demo B Party',
+    firstName: 'Demo',
+    lastName: 'B',
+  });
+  // Never lower nextValue on re-seed — domain linking may already have allocated higher codes.
+  const currentSeq = await prisma.partySequence.findUnique({ where: { companyId } });
+  const minNext = 2;
+  await prisma.partySequence.upsert({
+    where: { companyId },
+    update: {
+      nextValue: Math.max(currentSeq?.nextValue ?? minNext, minNext),
+    },
+    create: { companyId, nextValue: minNext },
+  });
+}
+
+async function seedPartyDomainLinksForCompany(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  await prisma.partySequence.upsert({
+    where: { companyId },
+    update: {},
+    create: { companyId, nextValue: 1 },
+  });
+
+  const ahmad = await prisma.party.findFirst({
+    where: { companyId, partyCode: 'PTY-000001' },
+  });
+
+  // Prefer linking seed capital/loans named Ahmad to the canonical Ahmad party.
+  if (ahmad) {
+    await prisma.capitalContribution.updateMany({
+      where: {
+        companyId,
+        contributorName: 'Ahmad',
+        contributorPartyId: null,
+      },
+      data: { contributorPartyId: ahmad.id },
+    });
+    await prisma.loan.updateMany({
+      where: { companyId, lenderName: 'Ahmad', lenderPartyId: null },
+      data: { lenderPartyId: ahmad.id },
+    });
+    await upsertSeedRole(prisma, {
+      companyId,
+      partyId: ahmad.id,
+      roleType: PartyRoleType.LENDER,
+    });
+    await upsertSeedRole(prisma, {
+      companyId,
+      partyId: ahmad.id,
+      roleType: PartyRoleType.PARTNER,
+    });
+  }
+
+  const unlinkedSuppliers = await prisma.supplier.findMany({
+    where: { companyId, partyId: null },
+  });
+  for (const s of unlinkedSuppliers) {
+    const party = await createSeedOrgParty(prisma, companyId, {
+      displayName: s.name,
+      legalName: s.legalName,
+      phone: s.phone,
+      email: s.email,
+      address: s.address,
+      role: PartyRoleType.SUPPLIER,
+    });
+    await prisma.supplier.update({
+      where: { id: s.id },
+      data: { partyId: party.id },
+    });
+  }
+
+  const unlinkedCustomers = await prisma.customer.findMany({
+    where: { companyId, partyId: null },
+    include: { addresses: true },
+  });
+  for (const c of unlinkedCustomers) {
+    const partyType =
+      c.type === CustomerType.INDIVIDUAL ? PartyType.INDIVIDUAL : PartyType.ORGANIZATION;
+    const party = await createSeedPartyForDomain(prisma, companyId, {
+      type: partyType,
+      displayName: c.displayName,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      legalName: c.businessName,
+      nationalId: c.nationalId,
+      registrationNumber: c.registrationNumber,
+      taxId: c.taxId,
+      mobile: c.mobile,
+      phone: c.phone,
+      email: c.email,
+      role: PartyRoleType.CUSTOMER,
+    });
+    await prisma.customer.update({
+      where: { id: c.id },
+      data: { partyId: party.id },
+    });
+    for (const addr of c.addresses) {
+      if (!addr.addressLine?.trim()) continue;
+      await prisma.partyAddress.create({
+        data: {
+          companyId,
+          partyId: party.id,
+          type: PartyAddressType.GENERAL,
+          addressLine1: addr.addressLine,
+          city: addr.city,
+          province: addr.province,
+          postalCode: addr.postalCode,
+          label: addr.label,
+          recipientName: addr.recipientName,
+          recipientPhone: addr.mobile,
+          isPrimary: addr.isDefault,
+          notes: addr.notes,
+        },
+      });
+    }
+  }
+
+  const unlinkedContacts = await prisma.supplierContact.findMany({
+    where: { companyId, contactPartyId: null },
+    include: { supplier: { select: { partyId: true } } },
+  });
+  for (const sc of unlinkedContacts) {
+    if (!sc.supplier.partyId) continue;
+    const person = await createSeedPartyForDomain(prisma, companyId, {
+      type: PartyType.INDIVIDUAL,
+      displayName: sc.name,
+      mobile: sc.mobile,
+      phone: sc.phone,
+      email: sc.email,
+      role: PartyRoleType.CONTACT,
+    });
+    const existingRel = await prisma.partyRelationship.findFirst({
+      where: {
+        companyId,
+        fromPartyId: person.id,
+        toPartyId: sc.supplier.partyId,
+        type: PartyRelationshipType.CONTACT_FOR,
+        status: PartyRelationshipStatus.ACTIVE,
+      },
+    });
+    if (!existingRel) {
+      await prisma.partyRelationship.create({
+        data: {
+          companyId,
+          fromPartyId: person.id,
+          toPartyId: sc.supplier.partyId,
+          type: PartyRelationshipType.CONTACT_FOR,
+          status: PartyRelationshipStatus.ACTIVE,
+          jobTitle: sc.role,
+          isPrimary: sc.isPrimary,
+          notes: sc.notes,
+        },
+      });
+    }
+    await prisma.supplierContact.update({
+      where: { id: sc.id },
+      data: { contactPartyId: person.id },
+    });
+  }
+
+  const unlinkedLoans = await prisma.loan.findMany({
+    where: { companyId, lenderPartyId: null },
+  });
+  for (const loan of unlinkedLoans) {
+    const party = await createSeedPartyForDomain(prisma, companyId, {
+      type: PartyType.INDIVIDUAL,
+      displayName: loan.lenderName,
+      role: PartyRoleType.LENDER,
+    });
+    await prisma.loan.update({
+      where: { id: loan.id },
+      data: { lenderPartyId: party.id },
+    });
+  }
+
+  const unlinkedCapital = await prisma.capitalContribution.findMany({
+    where: { companyId, contributorPartyId: null },
+  });
+  for (const cap of unlinkedCapital) {
+    const party = await createSeedPartyForDomain(prisma, companyId, {
+      type: PartyType.INDIVIDUAL,
+      displayName: cap.contributorName,
+      role:
+        cap.contributorType === FinanceCounterpartyType.PARTNER
+          ? PartyRoleType.PARTNER
+          : PartyRoleType.OTHER,
+    });
+    if (cap.contributorType === FinanceCounterpartyType.PARTNER) {
+      await prisma.partner.upsert({
+        where: { companyId_partyId: { companyId, partyId: party.id } },
+        update: { status: PartnerStatus.ACTIVE },
+        create: {
+          companyId,
+          partyId: party.id,
+          status: PartnerStatus.ACTIVE,
+          notes: 'SEED: from capital contribution',
+        },
+      });
+    }
+    await prisma.capitalContribution.update({
+      where: { id: cap.id },
+      data: { contributorPartyId: party.id },
+    });
+  }
+}
+
+async function createSeedOrgParty(
+  prisma: PrismaClient,
+  companyId: string,
+  input: {
+    displayName: string;
+    legalName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    role: PartyRoleType;
+  },
+) {
+  return createSeedPartyForDomain(prisma, companyId, {
+    type: PartyType.ORGANIZATION,
+    displayName: input.displayName,
+    legalName: input.legalName,
+    phone: input.phone,
+    email: input.email,
+    address: input.address,
+    role: input.role,
+  });
+}
+
+async function createSeedPartyForDomain(
+  prisma: PrismaClient,
+  companyId: string,
+  input: {
+    type: PartyType;
+    displayName: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    legalName?: string | null;
+    nationalId?: string | null;
+    registrationNumber?: string | null;
+    taxId?: string | null;
+    mobile?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    role: PartyRoleType;
+  },
+) {
+  const seq = await prisma.partySequence.upsert({
+    where: { companyId },
+    update: { nextValue: { increment: 1 } },
+    create: { companyId, nextValue: 2 },
+  });
+  const used = seq.nextValue - 1;
+  const partyCode = `PTY-${String(used).padStart(6, '0')}`;
+
+  // Avoid unique collision with pre-seeded codes.
+  let code = partyCode;
+  let n = used;
+  while (await prisma.party.findFirst({ where: { companyId, partyCode: code } })) {
+    n += 1;
+    code = `PTY-${String(n).padStart(6, '0')}`;
+    await prisma.partySequence.update({
+      where: { companyId },
+      data: { nextValue: n + 1 },
+    });
+  }
+
+  const party = await prisma.party.create({
+    data: {
+      companyId,
+      partyCode: code,
+      type: input.type,
+      status: PartyStatus.ACTIVE,
+      displayName: input.displayName,
+      firstName: input.type === PartyType.INDIVIDUAL ? (input.firstName ?? null) : null,
+      lastName: input.type === PartyType.INDIVIDUAL ? (input.lastName ?? null) : null,
+      legalName: input.type === PartyType.ORGANIZATION ? (input.legalName ?? null) : null,
+      nationalId: input.nationalId ?? null,
+      registrationNumber: input.registrationNumber ?? null,
+      taxId: input.taxId ?? null,
+    },
+  });
+  await upsertSeedRole(prisma, { companyId, partyId: party.id, roleType: input.role });
+
+  if (input.mobile?.trim()) {
+    await upsertSeedContact(prisma, {
+      companyId,
+      partyId: party.id,
+      type: PartyContactPointType.MOBILE,
+      value: input.mobile.trim(),
+      normalizedValue: input.mobile.trim().replace(/[\s\-()]/g, ''),
+      isPrimary: true,
+    });
+  }
+  if (input.phone?.trim()) {
+    await upsertSeedContact(prisma, {
+      companyId,
+      partyId: party.id,
+      type: PartyContactPointType.PHONE,
+      value: input.phone.trim(),
+      normalizedValue: input.phone.trim().replace(/[\s\-()]/g, ''),
+      isPrimary: !input.mobile?.trim(),
+    });
+  }
+  if (input.email?.trim()) {
+    await upsertSeedContact(prisma, {
+      companyId,
+      partyId: party.id,
+      type: PartyContactPointType.EMAIL,
+      value: input.email.trim(),
+      normalizedValue: input.email.trim().toLowerCase(),
+      isPrimary: !input.mobile?.trim() && !input.phone?.trim(),
+    });
+  }
+  if (input.address?.trim()) {
+    await upsertSeedAddress(prisma, {
+      companyId,
+      partyId: party.id,
+      label: 'Migrated',
+      type: PartyAddressType.GENERAL,
+      addressLine1: input.address.trim(),
+      isPrimary: true,
+    });
+  }
+  return party;
+}
+
+async function upsertSeedParty(
+  prisma: PrismaClient,
+  input: {
+    companyId: string;
+    partyCode: string;
+    type: PartyType;
+    displayName: string;
+    firstName?: string;
+    lastName?: string;
+    legalName?: string;
+    tradeName?: string;
+    createdById?: string;
+  },
+) {
+  return prisma.party.upsert({
+    where: {
+      companyId_partyCode: { companyId: input.companyId, partyCode: input.partyCode },
+    },
+    update: {
+      displayName: input.displayName,
+      firstName: input.firstName ?? null,
+      lastName: input.lastName ?? null,
+      legalName: input.legalName ?? null,
+      tradeName: input.tradeName ?? null,
+      status: PartyStatus.ACTIVE,
+    },
+    create: {
+      companyId: input.companyId,
+      partyCode: input.partyCode,
+      type: input.type,
+      status: PartyStatus.ACTIVE,
+      displayName: input.displayName,
+      firstName: input.firstName ?? null,
+      lastName: input.lastName ?? null,
+      legalName: input.legalName ?? null,
+      tradeName: input.tradeName ?? null,
+      createdById: input.createdById ?? null,
+      updatedById: input.createdById ?? null,
+    },
+  });
+}
+
+async function upsertSeedContact(
+  prisma: PrismaClient,
+  input: {
+    companyId: string;
+    partyId: string;
+    type: PartyContactPointType;
+    value: string;
+    normalizedValue: string;
+    isPrimary: boolean;
+  },
+) {
+  const existing = await prisma.partyContactPoint.findFirst({
+    where: {
+      companyId: input.companyId,
+      partyId: input.partyId,
+      type: input.type,
+      normalizedValue: input.normalizedValue,
+    },
+  });
+  if (existing) {
+    return prisma.partyContactPoint.update({
+      where: { id: existing.id },
+      data: {
+        value: input.value,
+        isPrimary: input.isPrimary,
+        status: PartyContactPointStatus.ACTIVE,
+      },
+    });
+  }
+  return prisma.partyContactPoint.create({
+    data: {
+      companyId: input.companyId,
+      partyId: input.partyId,
+      type: input.type,
+      value: input.value,
+      normalizedValue: input.normalizedValue,
+      isPrimary: input.isPrimary,
+      status: PartyContactPointStatus.ACTIVE,
+    },
+  });
+}
+
+async function upsertSeedAddress(
+  prisma: PrismaClient,
+  input: {
+    companyId: string;
+    partyId: string;
+    label: string;
+    type: PartyAddressType;
+    addressLine1: string;
+    isPrimary: boolean;
+  },
+) {
+  const existing = await prisma.partyAddress.findFirst({
+    where: {
+      companyId: input.companyId,
+      partyId: input.partyId,
+      label: input.label,
+      archivedAt: null,
+    },
+  });
+  if (existing) {
+    return prisma.partyAddress.update({
+      where: { id: existing.id },
+      data: {
+        type: input.type,
+        addressLine1: input.addressLine1,
+        isPrimary: input.isPrimary,
+      },
+    });
+  }
+  return prisma.partyAddress.create({
+    data: {
+      companyId: input.companyId,
+      partyId: input.partyId,
+      label: input.label,
+      type: input.type,
+      addressLine1: input.addressLine1,
+      isPrimary: input.isPrimary,
+    },
+  });
+}
+
+async function upsertSeedRole(
+  prisma: PrismaClient,
+  input: { companyId: string; partyId: string; roleType: PartyRoleType },
+) {
+  const existing = await prisma.partyRole.findFirst({
+    where: {
+      companyId: input.companyId,
+      partyId: input.partyId,
+      roleType: input.roleType,
+      status: PartyRoleStatus.ACTIVE,
+    },
+  });
+  if (existing) return existing;
+  return prisma.partyRole.create({
+    data: {
+      companyId: input.companyId,
+      partyId: input.partyId,
+      roleType: input.roleType,
+      status: PartyRoleStatus.ACTIVE,
+    },
+  });
+}
+
+/** Phase 5.1 — idempotent Sales Channel + sample Customer for Pishteh. */
+async function seedSalesChannelsForPishteh(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'pouria@hector.local' } });
+  const channels: Array<{ code: string; name: string; type: SalesChannelType }> = [
+    { code: 'WEBSITE', name: 'Pishteh Website', type: SalesChannelType.WEBSITE },
+    { code: 'KHANOUMI', name: 'Khanoumi', type: SalesChannelType.MARKETPLACE },
+    { code: 'DIGIKALA', name: 'Digikala', type: SalesChannelType.MARKETPLACE },
+    { code: 'SNAPP_SHOP', name: 'Snapp Shop', type: SalesChannelType.MARKETPLACE },
+    { code: 'WHOLESALE', name: 'Wholesale', type: SalesChannelType.WHOLESALE },
+    { code: 'MANUAL', name: 'Manual', type: SalesChannelType.MANUAL },
+  ];
+
+  for (const channel of channels) {
+    await upsertSalesChannel(prisma, companyId, {
+      ...channel,
+      createdById: owner.id,
+    });
+  }
+
+  await upsertCustomer(prisma, companyId, {
+    code: 'CUS-DEMO',
+    type: CustomerType.BUSINESS,
+    displayName: 'فروشگاه آرایشی آریا',
+    businessName: 'فروشگاه آرایشی آریا',
+    createdById: owner.id,
+  });
+}
+
+/** Phase 5.2 — light DRAFT wholesale sample order (idempotent by requestId). */
+async function seedSalesOrdersForPishteh(
+  prisma: PrismaClient,
+  companyId: string,
+): Promise<void> {
+  const SAMPLE_REQUEST_ID = 'a0b1c2d3-e4f5-6789-abcd-ef0123456789';
+  const existing = await prisma.salesOrder.findFirst({
+    where: { companyId, requestId: SAMPLE_REQUEST_ID },
+    select: { id: true },
+  });
+  if (existing) {
+    await prisma.salesOrderSequence.upsert({
+      where: { companyId },
+      create: { companyId, nextValue: 2 },
+      update: {},
+    });
+    await prisma.salesReturnSequence.upsert({
+      where: { companyId },
+      create: { companyId, nextValue: 1 },
+      update: {},
+    });
+    return;
+  }
+
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'pouria@hector.local' } });
+  const channel = await prisma.salesChannel.findUniqueOrThrow({
+    where: { companyId_code: { companyId, code: 'WHOLESALE' } },
+  });
+  const customer = await prisma.customer.findUniqueOrThrow({
+    where: { companyId_code: { companyId, code: 'CUS-DEMO' } },
+  });
+  const mascara = await prisma.sku.findFirstOrThrow({
+    where: { companyId, code: 'ESS-MASCARA-01' },
+    include: { product: { select: { name: true } } },
+  });
+  const primer = await prisma.sku.findFirstOrThrow({
+    where: { companyId, code: 'FAN-PRIMER-01' },
+    include: { product: { select: { name: true } } },
+  });
+
+  await prisma.salesOrderSequence.upsert({
+    where: { companyId },
+    create: { companyId, nextValue: 2 },
+    update: {},
+  });
+  await prisma.salesReturnSequence.upsert({
+    where: { companyId },
+    create: { companyId, nextValue: 1 },
+    update: {},
+  });
+
+  const order = await prisma.salesOrder.create({
+    data: {
+      companyId,
+      orderNumber: 'SO-000001',
+      channelId: channel.id,
+      customerId: customer.id,
+      status: SalesOrderStatus.DRAFT,
+      currency: CurrencyCode.IRR,
+      paymentTermType: SalesOrderPaymentTermType.CREDIT,
+      source: SalesOrderSource.MANUAL,
+      customerNameSnapshot: customer.displayName,
+      subtotal: new Prisma.Decimal('8500000'),
+      itemDiscountTotal: new Prisma.Decimal('0'),
+      orderDiscountTotal: new Prisma.Decimal('0'),
+      netItemsTotal: new Prisma.Decimal('8500000'),
+      shippingAmount: new Prisma.Decimal('0'),
+      otherCharges: new Prisma.Decimal('0'),
+      grandTotal: new Prisma.Decimal('8500000'),
+      notes: 'Seed DRAFT wholesale sample (Phase 5.2)',
+      requestId: SAMPLE_REQUEST_ID,
+      createdById: owner.id,
+    },
+  });
+
+  await prisma.salesOrderItem.createMany({
+    data: [
+      {
+        companyId,
+        salesOrderId: order.id,
+        skuId: mascara.id,
+        quantity: 10,
+        unitPrice: new Prisma.Decimal('600000'),
+        discountAmount: new Prisma.Decimal('0'),
+        lineSubtotal: new Prisma.Decimal('6000000'),
+        lineNetTotal: new Prisma.Decimal('6000000'),
+        skuCodeSnapshot: mascara.code,
+        productNameSnapshot: mascara.product.name,
+        variantNameSnapshot: mascara.name,
+      },
+      {
+        companyId,
+        salesOrderId: order.id,
+        skuId: primer.id,
+        quantity: 5,
+        unitPrice: new Prisma.Decimal('500000'),
+        discountAmount: new Prisma.Decimal('0'),
+        lineSubtotal: new Prisma.Decimal('2500000'),
+        lineNetTotal: new Prisma.Decimal('2500000'),
+        skuCodeSnapshot: primer.code,
+        productNameSnapshot: primer.product.name,
+        variantNameSnapshot: primer.name,
+      },
+    ],
+  });
+}
+
+/** Minimal Sales Channel + Customer on secondary company for tenant isolation checks. */
+async function seedSalesForSecondary(prisma: PrismaClient, companyId: string): Promise<void> {
+  await upsertSalesChannel(prisma, companyId, {
+    code: 'WHOLESALE',
+    name: 'Demo B Wholesale',
+    type: SalesChannelType.WHOLESALE,
+  });
+  await upsertCustomer(prisma, companyId, {
+    code: 'CUS-DEMO-B',
+    type: CustomerType.BUSINESS,
+    displayName: 'Demo B Customer',
+  });
+}
+
+async function upsertSalesChannel(
+  prisma: PrismaClient,
+  companyId: string,
+  input: {
+    code: string;
+    name: string;
+    type: SalesChannelType;
+    createdById?: string;
+  },
+): Promise<{ id: string }> {
+  const existing = await prisma.salesChannel.findUnique({
+    where: { companyId_code: { companyId, code: input.code } },
+  });
+
+  if (existing) {
+    return prisma.salesChannel.update({
+      where: { id: existing.id },
+      data: {
+        name: input.name,
+        type: input.type,
+        status: SalesChannelStatus.ACTIVE,
+        archivedAt: null,
+        ...(input.createdById ? { createdById: input.createdById } : {}),
+      },
+      select: { id: true },
+    });
+  }
+
+  return prisma.salesChannel.create({
+    data: {
+      companyId,
+      code: input.code,
+      name: input.name,
+      type: input.type,
+      status: SalesChannelStatus.ACTIVE,
+      createdById: input.createdById ?? null,
+    },
+    select: { id: true },
+  });
+}
+
+async function upsertCustomer(
+  prisma: PrismaClient,
+  companyId: string,
+  input: {
+    code: string;
+    type: CustomerType;
+    displayName: string;
+    businessName?: string | null;
+    createdById?: string;
+  },
+): Promise<{ id: string }> {
+  const existing = await prisma.customer.findUnique({
+    where: { companyId_code: { companyId, code: input.code } },
+  });
+
+  if (existing) {
+    return prisma.customer.update({
+      where: { id: existing.id },
+      data: {
+        type: input.type,
+        displayName: input.displayName,
+        businessName: input.businessName ?? existing.businessName,
+        status: CustomerStatus.ACTIVE,
+        archivedAt: null,
+        ...(input.createdById ? { createdById: input.createdById } : {}),
+      },
+      select: { id: true },
+    });
+  }
+
+  return prisma.customer.create({
+    data: {
+      companyId,
+      code: input.code,
+      type: input.type,
+      displayName: input.displayName,
+      businessName: input.businessName ?? null,
+      status: CustomerStatus.ACTIVE,
+      createdById: input.createdById ?? null,
+    },
+    select: { id: true },
   });
 }
 

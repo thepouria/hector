@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import {
   CurrencyCode,
-  ExpensePaymentAllocationStatus,
   FxRateType,
   PaymentStatus,
   Prisma,
@@ -973,40 +972,21 @@ export class SettlementService {
     return agg._sum.baseCarryingAmount ?? new Prisma.Decimal(0);
   }
 
-  /** Sum payment-currency amounts already allocated (supplier POSTED + expense ACTIVE). */
+  /** Sum payment-currency amounts already allocated across all consumers. */
   private async sumPaymentAllocated(
     tx: Tx,
     companyId: string,
     paymentId: string,
   ): Promise<Prisma.Decimal> {
-    const supplierAgg = await tx.supplierPaymentAllocation.aggregate({
-      where: {
-        companyId,
-        paymentId,
-        status: SupplierPaymentAllocationStatus.POSTED,
-      },
-      _sum: { paymentAmountApplied: true },
-    });
-    const expenseAgg = await tx.expensePaymentAllocation.aggregate({
-      where: {
-        companyId,
-        paymentId,
-        status: ExpensePaymentAllocationStatus.ACTIVE,
-      },
-      _sum: { amount: true },
-    });
-    const a = supplierAgg._sum.paymentAmountApplied ?? new Prisma.Decimal(0);
-    const b = expenseAgg._sum.amount ?? new Prisma.Decimal(0);
-    return a.plus(b);
+    const { sumPaymentAllocatedAmount } = await import('./payment-allocation-capacity');
+    return sumPaymentAllocatedAmount(tx, companyId, paymentId);
   }
 
   private async lockPayment(tx: Tx, companyId: string, paymentId: string): Promise<void> {
-    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT id FROM payments
-      WHERE id = ${paymentId}::uuid AND company_id = ${companyId}::uuid
-      FOR UPDATE
-    `);
-    if (!rows[0]) {
+    const { lockPaymentForAllocation } = await import('./payment-allocation-capacity');
+    try {
+      await lockPaymentForAllocation(tx, companyId, paymentId);
+    } catch {
       throw new AppError({
         code: ERROR_CODES.PAYMENT_NOT_FOUND,
         message: 'Payment not found.',

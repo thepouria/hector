@@ -412,8 +412,5 @@ describe('Purchase Order Costs (e2e)', () => {
       where: { companyId: pishtehId, entityId: costId, action: 'PURCHASE_COST_VOIDED' },
     });
     expect(voidAudits).toHaveLength(1);
-
-    expect((database.client as { payment?: unknown }).payment).toBeUndefined();
-    expect((database.client as { stockLedgerEntry?: unknown }).stockLedgerEntry).toBeUndefined();
   });
 });
