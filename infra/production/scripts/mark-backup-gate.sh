@@ -26,8 +26,18 @@ meta="${latest_dump}.meta.json"
 [[ -f "$meta" ]] || die "Missing meta: ${meta}"
 
 offsite="$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print("true" if m.get("offsiteOk") else "false")' "$meta" 2>/dev/null || echo false)"
-if [[ "$offsite" != "true" ]]; then
-  die "Latest backup meta offsiteOk!=true. Configure HECTOR_BACKUP_OFFSITE_RSYNC or HECTOR_BACKUP_OFFSITE_CMD and re-run backup.sh"
+LOCAL_ONLY_ACK="${HECTOR_BACKUP_ALLOW_LOCAL_ONLY:-}"
+OFFSITE_MODE="remote"
+if [[ "$offsite" == "true" ]]; then
+  OFFSITE_MODE="remote"
+elif [[ "$LOCAL_ONLY_ACK" == "I_ACCEPT_SAME_SERVER_RISK" ]]; then
+  # Pilot / small-team exception: same-server dump + restore-verify only.
+  # Disk loss destroys DB and backups together — operator must copy off-box manually.
+  OFFSITE_MODE="local-acknowledged"
+  yellow "OFFSITE DEFERRED: same-server backup only (HECTOR_BACKUP_ALLOW_LOCAL_ONLY set)."
+  yellow "Copy dumps off this host manually when possible. Do not treat this as full DR."
+else
+  die "Latest backup meta offsiteOk!=true. Configure HECTOR_BACKUP_OFFSITE_RSYNC / HECTOR_BACKUP_OFFSITE_CMD, or set HECTOR_BACKUP_ALLOW_LOCAL_ONLY=I_ACCEPT_SAME_SERVER_RISK for same-server-only pilot."
 fi
 
 latest_evidence="$(ls -1t "${EVIDENCE_DIR}"/restore-verify-*.json 2>/dev/null | head -n1 || true)"
@@ -38,13 +48,14 @@ dump_sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha
 ev_sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sha256",""))' "$latest_evidence")"
 if [[ -n "$ev_sha" && "$ev_sha" != "$dump_sha" ]]; then
   yellow "Warning: restore evidence SHA (${ev_sha}) != latest dump SHA (${dump_sha})."
-  yellow "Prefer re-running restore-verify.sh against the latest offsite-copied dump."
+  yellow "Prefer re-running restore-verify.sh against the latest dump."
 fi
 
 green "Backup gate evidence OK"
 echo "  dump=${latest_dump}"
 echo "  evidence=${latest_evidence}"
-echo "  offsiteOk=true"
+echo "  offsiteMode=${OFFSITE_MODE}"
+echo "  offsiteOk=${offsite}"
 
 ENV_FILE="${HECTOR_ENV_FILE:-$DEFAULT_ENV_FILE}"
 
