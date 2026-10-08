@@ -12,8 +12,9 @@ resolve_compose_project
 require_production_confirm
 require_backup_gate_for_migrate
 
-[[ -n "${HECTOR_IMAGE_TAG:-}" ]] || die "HECTOR_IMAGE_TAG is required"
-[[ -n "${HECTOR_MIGRATE_IMAGE:-}" ]] || HECTOR_MIGRATE_IMAGE="hector-api-migrate:${HECTOR_IMAGE_TAG}"
+HECTOR_IMAGE_TAG="${HECTOR_IMAGE_TAG:-latest}"
+HECTOR_MIGRATE_IMAGE="${HECTOR_MIGRATE_IMAGE:-hector-api-migrate:${HECTOR_IMAGE_TAG}}"
+export HECTOR_IMAGE_TAG HECTOR_MIGRATE_IMAGE
 
 yellow "Running prisma migrate deploy via ${HECTOR_MIGRATE_IMAGE}…"
 yellow "mode=${DEPLOYMENT_MODE} project=${HECTOR_COMPOSE_PROJECT}"

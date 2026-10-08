@@ -43,7 +43,8 @@ services:
     mem_limit: 1g
 
   migrate:
-    image: ${HECTOR_MIGRATE_IMAGE:-hector-api-migrate:${HECTOR_IMAGE_TAG:?HECTOR_IMAGE_TAG is required}}
+    image: ${HECTOR_MIGRATE_IMAGE:-hector-api-migrate:latest}
+    pull_policy: never
     profiles: ['migrate']
     restart: 'no'
     environment:
@@ -59,7 +60,8 @@ services:
     logging: *default-logging
 
   api:
-    image: ${HECTOR_API_IMAGE:-hector-api:${HECTOR_IMAGE_TAG:?HECTOR_IMAGE_TAG is required}}
+    image: ${HECTOR_API_IMAGE:-hector-api:latest}
+    pull_policy: never
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -103,7 +105,8 @@ services:
       - /tmp:size=64m,mode=1777
 
   web:
-    image: ${HECTOR_WEB_IMAGE:-hector-web:${HECTOR_IMAGE_TAG:?HECTOR_IMAGE_TAG is required}}
+    image: ${HECTOR_WEB_IMAGE:-hector-web:latest}
+    pull_policy: never
     restart: unless-stopped
     environment:
       NODE_ENV: production

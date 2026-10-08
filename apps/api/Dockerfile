@@ -57,19 +57,19 @@ RUN DB_PKG=/deploy/api/node_modules/@hector/database \
 
 # --- migrator (one-off prisma migrate deploy; never seed/reset) ---
 # Runs on the internal Docker network (no egress). Must not call Corepack/npm at runtime.
+# Avoid chown -R /app (slow on large node_modules; caused shared-host build stalls).
 FROM build AS migrator
 ENV NODE_ENV=production
 ENV COREPACK_ENABLE_NETWORK=0
 WORKDIR /app/packages/database
 RUN groupadd --gid 10001 hector \
   && useradd --uid 10001 --gid hector --shell /usr/sbin/nologin --create-home hector \
-  && chown -R hector:hector /app \
+  && chmod -R a+rX /app \
   && (test -x /app/packages/database/node_modules/.bin/prisma \
       || test -x /app/node_modules/.bin/prisma) \
   && if [ -x /app/packages/database/node_modules/.bin/prisma ]; then \
        ln -sfn /app/packages/database/node_modules/.bin/prisma /usr/local/bin/hector-prisma; \
      else \
-       # Hoisted install: invoke via pnpm from package cwd (offline; COREPACK_ENABLE_NETWORK=0).
        printf '%s\n' '#!/bin/sh' 'cd /app/packages/database && exec /app/node_modules/.bin/prisma "$@"' \
          > /usr/local/bin/hector-prisma \
        && chmod +x /usr/local/bin/hector-prisma; \
