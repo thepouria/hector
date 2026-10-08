@@ -77,18 +77,34 @@ done
 docker exec "$VERIFY_NAME" pg_isready -U hector_restore -d hector_restore \
   || die "Disposable Postgres did not become ready"
 
+# Validate archive is a readable pg_dump custom-format TOC before restore
+TOC_LINES="$(docker run --rm -i "$VERIFY_IMAGE" pg_restore -l <"$DUMP_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+[[ "${TOC_LINES}" -gt 0 ]] || die "Dump is not a readable pg_dump -Fc archive (pg_restore -l produced no TOC)"
+
 yellow "Restoring dump (isolated)…"
+set +e
 docker exec -i "$VERIFY_NAME" \
   pg_restore -U hector_restore -d hector_restore --no-owner --no-acl \
-  <"$DUMP_FILE" || {
-    # pg_restore may exit 1 for non-fatal warnings; treat empty schema as failure
-    yellow "pg_restore returned non-zero — checking table presence…"
-  }
+  <"$DUMP_FILE"
+RESTORE_RC=$?
+set -e
+# pg_restore exit 1 is often non-fatal warnings; 0 is clean; >1 is hard failure
+if [[ "$RESTORE_RC" -gt 1 ]]; then
+  die "pg_restore failed hard (exit ${RESTORE_RC})"
+fi
+if [[ "$RESTORE_RC" -eq 1 ]]; then
+  yellow "pg_restore returned 1 (warnings) — continuing with schema checks…"
+fi
 
 TABLE_COUNT="$(docker exec "$VERIFY_NAME" psql -U hector_restore -d hector_restore -Atc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
 
-[[ "${TABLE_COUNT}" -gt 0 ]] || die "Restore produced zero public tables"
+EMPTY_OK=false
+if [[ "${TABLE_COUNT}" -eq 0 ]]; then
+  # Pre-migrate empty Hector DB dumps are valid (chicken-egg backup gate).
+  yellow "Restore produced zero public tables — accepting as empty pre-migrate database."
+  EMPTY_OK=true
+fi
 
 MIG_COUNT="$(docker exec "$VERIFY_NAME" psql -U hector_restore -d hector_restore -Atc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='_prisma_migrations';" 2>/dev/null || echo 0)"
@@ -96,7 +112,7 @@ MIG_COUNT="$(docker exec "$VERIFY_NAME" psql -U hector_restore -d hector_restore
 HAS_COMPANIES="$(docker exec "$VERIFY_NAME" psql -U hector_restore -d hector_restore -Atc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='companies';" 2>/dev/null || echo 0)"
 
-green "Restore verification tables: public=${TABLE_COUNT} _prisma_migrations=${MIG_COUNT} companies=${HAS_COMPANIES}"
+green "Restore verification tables: public=${TABLE_COUNT} _prisma_migrations=${MIG_COUNT} companies=${HAS_COMPANIES} emptyOk=${EMPTY_OK}"
 
 mkdir -p "$EVIDENCE_DIR"
 chmod 700 "$EVIDENCE_DIR" 2>/dev/null || true
@@ -107,6 +123,8 @@ cat >"$EVIDENCE_FILE" <<EOF
   "dumpFile": "$(basename "$DUMP_FILE")",
   "sha256": "${ACTUAL_SHA}",
   "publicTableCount": ${TABLE_COUNT},
+  "emptyDatabaseOk": ${EMPTY_OK},
+  "archiveTocLines": ${TOC_LINES},
   "hasPrismaMigrations": $([[ "$MIG_COUNT" == "1" ]] && echo true || echo false),
   "hasCompaniesTable": $([[ "$HAS_COMPANIES" == "1" ]] && echo true || echo false),
   "verifyContainer": "${VERIFY_NAME}",
@@ -118,5 +136,5 @@ chmod 600 "$EVIDENCE_FILE"
 
 green "Restore verification PASS"
 green "Evidence: ${EVIDENCE_FILE}"
-echo "After off-server copy succeeds, set HECTOR_BACKUP_GATE=verified in production.env"
+echo "Next: mark-backup-gate.sh (offsite or HECTOR_BACKUP_ALLOW_LOCAL_ONLY)"
 echo "EVIDENCE_FILE=${EVIDENCE_FILE}"

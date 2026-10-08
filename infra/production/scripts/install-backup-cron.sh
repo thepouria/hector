@@ -26,7 +26,7 @@ echo "$ENTRY"
 echo
 yellow "Requirements:"
 echo "  - Scripts executable; env file mode 0600"
-echo "  - HECTOR_BACKUP_OFFSITE_RSYNC or HECTOR_BACKUP_OFFSITE_CMD set in env"
+echo "  - Offsite optional for pilot; or HECTOR_BACKUP_ALLOW_LOCAL_ONLY=I_ACCEPT_SAME_SERVER_RISK"
 echo "  - Log dir writable (touch ${LOG_FILE})"
 echo "  - Never schedule overlapping jobs (lock file prevents concurrent runs)"
 
