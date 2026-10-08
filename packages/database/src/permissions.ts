@@ -618,6 +618,8 @@ export async function syncPermissions(client: PermissionSyncClient): Promise<voi
 /**
  * Ensures every non-deleted OWNER system role has every registered permission.
  * Safe across multiple companies.
+ *
+ * Skips roles deleted between findMany and upsert (e2e temp-company teardown race).
  */
 export async function syncOwnerRolePermissions(client: PermissionSyncClient): Promise<void> {
   const permissions = await client.permission.findMany({
@@ -639,19 +641,31 @@ export async function syncOwnerRolePermissions(client: PermissionSyncClient): Pr
 
   for (const role of ownerRoles) {
     for (const permission of permissions) {
-      await client.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
+      try {
+        await client.rolePermission.upsert({
+          where: {
+            roleId_permissionId: {
+              roleId: role.id,
+              permissionId: permission.id,
+            },
+          },
+          update: {},
+          create: {
             roleId: role.id,
             permissionId: permission.id,
           },
-        },
-        update: {},
-        create: {
-          roleId: role.id,
-          permissionId: permission.id,
-        },
-      });
+        });
+      } catch (error) {
+        const code =
+          error && typeof error === 'object' && 'code' in error
+            ? String((error as { code: unknown }).code)
+            : '';
+        // P2003: role removed while syncing (common under shared e2e DB teardown).
+        if (code === 'P2003') {
+          break;
+        }
+        throw error;
+      }
     }
   }
 }

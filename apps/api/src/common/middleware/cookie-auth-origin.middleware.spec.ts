@@ -20,10 +20,26 @@ function mockRes() {
 describe('cookieAuthOriginGuard', () => {
   const guard = createCookieAuthOriginGuard(['http://localhost:3000']);
 
-  it('allows refresh without Origin (non-browser / SameSite primary defense)', () => {
+  it('rejects refresh without Origin (fail closed for cookie CSRF)', () => {
     const req = {
       method: 'POST',
       path: '/api/v1/auth/refresh',
+      get: () => undefined,
+      requestId: 'req-missing',
+    } as unknown as Request;
+    const res = mockRes();
+    let nextCalled = false;
+    guard(req, res, () => {
+      nextCalled = true;
+    });
+    expect(nextCalled).toBe(false);
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('allows login without Origin (password body; API clients)', () => {
+    const req = {
+      method: 'POST',
+      path: '/api/v1/auth/login',
       get: () => undefined,
     } as unknown as Request;
     const res = mockRes();

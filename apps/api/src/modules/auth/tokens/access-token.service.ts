@@ -23,6 +23,7 @@ export class AccessTokenService {
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: auth.jwtAccessSecret,
+      algorithm: 'HS256',
       expiresIn: auth.jwtAccessTtlSeconds,
     });
 
@@ -36,6 +37,7 @@ export class AccessTokenService {
     const auth = this.configService.getOrThrow<AuthConfig>('auth');
     const payload = await this.jwtService.verifyAsync<AccessTokenClaims>(token, {
       secret: auth.jwtAccessSecret,
+      algorithms: ['HS256'],
     });
 
     if (!payload.sub || !payload.sid) {

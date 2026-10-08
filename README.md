@@ -210,11 +210,36 @@ pnpm party:integrity      # Party + domain-link integrity (Phase 5.5.2)
 pnpm settlement:integrity # Settlement integrity (Phase 6.1 + 6.2 + 6.3)
 pnpm reconciliation:integrity # Reconciliation integrity (Phase 6.4)
 pnpm phase6:integrity         # Settlement + Reconciliation aggregate
+pnpm integrity:all            # All domain integrity checkers (read-only; CI post-E2E gate)
+pnpm ci:verify                # Local CI equivalent: generate → typecheck → lint → unit → security → e2e → integrity:all → build
+
+# Critical: do NOT reset the DB between `pnpm test:e2e` and integrity.
+# `test:e2e` already runs integrity:all after Jest against the same database.
+# Why: CI must prove the suite itself left Hector internally consistent.
 pnpm finance:reconcile        # Finance + Settlement + Reconciliation
 pnpm party:reconcile      # read-only cross-domain Party reconciliation
 pnpm party:migrate --dry-run
 pnpm party:migrate --apply
 ```
+
+### Local CI / integrity investigation
+
+Reproduce GitHub Actions gates locally (Postgres via Docker, migrate deploy, seed, then verify):
+
+```bash
+docker compose down -v && docker compose up -d
+# wait until: docker compose exec -T postgres pg_isready -U hector -d hector
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm ci:verify   # or step through: typecheck → lint → test → test:security → test:e2e → build
+```
+
+- E2E only: `pnpm test:e2e` (Jest `--runInBand`, then `integrity:all`, no DB reset between).
+- Integrity only (after a green E2E, same DB): `pnpm integrity:all`.
+- Single domain: `pnpm purchasing:integrity`, `pnpm finance:integrity`, etc.
+- On `[FAIL] <Domain>`, re-run that domain command for the full violation list; do not repair/reset before diagnosing.
+- To add a gate: implement a read-only script under `packages/database/scripts/`, wire `package.json` + `run-all-integrity.ts`, document hard vs warning exit semantics. See `docs/p-1-2-ci-integrity-hardening.md`.
+
 
 ### Sales (Phase 5 — CLOSED) + Party Master (Phase 5.5 — COMPLETE)
 

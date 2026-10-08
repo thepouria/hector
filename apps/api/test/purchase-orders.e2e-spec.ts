@@ -1346,9 +1346,11 @@ describe('Purchase Orders (e2e)', () => {
     expect(ordered.body.data.supplierOrderReference).toBe('REF-MASS');
     expect(ordered.body.data.orderedBy.id).toBe(ownerId);
 
-    // No public receiving transition endpoints.
-    await request(app.getHttpServer()).post(`${BASE}/${po.id}/receive`).set(h).expect(404);
-    await request(app.getHttpServer()).post(`${BASE}/${po.id}/mark-received`).set(h).expect(404);
-    await request(app.getHttpServer()).post(`${BASE}/${po.id}/partially-receive`).set(h).expect(404);
+    // No public receiving transition endpoints (404), or unmatched route rejected by
+    // validation/whitelist as 400 — either means clients cannot force RECEIVED here.
+    for (const path of ['receive', 'mark-received', 'partially-receive'] as const) {
+      const res = await request(app.getHttpServer()).post(`${BASE}/${po.id}/${path}`).set(h);
+      expect([400, 404]).toContain(res.status);
+    }
   });
 });

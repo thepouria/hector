@@ -1,0 +1,22 @@
+# Gitleaks configuration for Hector (P.3)
+title = "hector"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Examples, disposable smoke env, build artifacts, and fixtures"
+paths = [
+  '''\.env\.example$''',
+  '''production\.env\.example$''',
+  '''infra/production/env/smoke\.env$''',
+  '''infra/production/env/smoke\.shared-host\.env$''',
+  '''apps/web/\.env\.example$''',
+  '''docs/.*''',
+  '''.*\.md$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)dist/''',
+  '''(^|/)\.turbo/''',
+  '''(^|/)coverage/''',
+]

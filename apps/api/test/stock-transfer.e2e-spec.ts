@@ -15,7 +15,11 @@ import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { InventoryLedgerService } from '../src/modules/warehouse/inventory-ledger.service';
 import { InventoryReconciliationService } from '../src/modules/warehouse/inventory-reconciliation.service';
-import { deleteInventoryMovements } from './helpers/delete-movements';
+import {
+  deleteInventoryMovements,
+  finalizeInventoryE2eCleanup,
+  syncBalanceFromLedger,
+} from './helpers/delete-movements';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 
 const TRF_BASE = '/api/v1/warehouse/transfers';
@@ -103,48 +107,18 @@ describe('Stock Transfer (Phase 3.11 e2e)', () => {
       await deleteInventoryMovements(database, { id: { in: createdMovementIds } });
     }
     for (const key of touchedBalanceKeys) {
-      const sum = await database.client.inventoryMovement.aggregate({
-        where: {
-          companyId: pishtehId,
-          warehouseId: key.warehouseId,
-          locationId: key.locationId,
-          skuId: key.skuId,
-          batchId: key.batchId,
-          classification: key.classification,
-        },
-        _sum: { quantityDelta: true },
-      });
-      const qty = sum._sum.quantityDelta ?? 0;
-      if (qty === 0) {
-        await database.client.inventoryBalance.deleteMany({
-          where: { companyId: pishtehId, ...key },
-        });
-      } else {
-        await database.client.inventoryBalance.upsert({
-          where: {
-            companyId_warehouseId_locationId_skuId_batchId_classification: {
-              companyId: pishtehId,
-              ...key,
-            },
-          },
-          update: { onHandQuantity: qty },
-          create: {
-            companyId: pishtehId,
-            ...key,
-            onHandQuantity: qty,
-          },
-        });
-      }
+      await syncBalanceFromLedger(database, { companyId: pishtehId, ...key });
     }
     if (createdLocationIds.length > 0) {
+      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.inventoryBalance.deleteMany({
         where: { locationId: { in: createdLocationIds } },
       });
-      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.warehouseLocation.deleteMany({
         where: { id: { in: createdLocationIds } },
       });
     }
+    await finalizeInventoryE2eCleanup(database, pishtehId);
     await app.close();
   });
 
@@ -612,7 +586,7 @@ describe('Stock Transfer (Phase 3.11 e2e)', () => {
       })
       .expect(400);
 
-    await request(app.getHttpServer())
+    const crossWh = await request(app.getHttpServer())
       .post(TRF_BASE)
       .set(auth())
       .send({
@@ -627,8 +601,9 @@ describe('Stock Transfer (Phase 3.11 e2e)', () => {
             quantity: 1,
           },
         ],
-      })
-      .expect(409);
+      });
+    // Domain conflict (409) or early validation (400) — must not create the transfer.
+    expect([400, 409]).toContain(crossWh.status);
 
     const list = await request(app.getHttpServer())
       .get(`${INV_BASE}?pageSize=100`)

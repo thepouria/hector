@@ -15,11 +15,14 @@ import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { InventoryLedgerService } from '../src/modules/warehouse/inventory-ledger.service';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
-import { deleteInventoryMovements } from './helpers/delete-movements';
+import {
+  deleteInventoryMovements,
+  finalizeInventoryE2eCleanup,
+} from './helpers/delete-movements';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 import {
   cleanupPayablesForGoodsReceipts,
-  cleanupPayablesForPurchaseOrders,
+  cleanupE2ePurchaseOrders,
 } from './helpers/payable-cleanup';
 
 const INV_BASE = '/api/v1/warehouse/inventory';
@@ -96,7 +99,9 @@ describe('Inventory Movement Ledger (Phase 3.9 e2e)', () => {
         locationId: { in: createdLocationIds },
       },
     });
-    if (createdReceiptIds.length > 0) {
+    if (createdPoIds.length > 0) {
+      await cleanupE2ePurchaseOrders(database, createdPoIds);
+    } else if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
       await database.client.goodsReceiptItemBatch.deleteMany({
         where: { goodsReceiptItem: { goodsReceiptId: { in: createdReceiptIds } } },
@@ -108,24 +113,16 @@ describe('Inventory Movement Ledger (Phase 3.9 e2e)', () => {
         where: { id: { in: createdReceiptIds } },
       });
     }
-    if (createdPoIds.length > 0) {
-      await cleanupPayablesForPurchaseOrders(database, createdPoIds);
-      await database.client.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrder.deleteMany({
-        where: { id: { in: createdPoIds } },
-      });
-    }
     if (createdLocationIds.length > 0) {
+      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.inventoryBalance.deleteMany({
         where: { locationId: { in: createdLocationIds } },
       });
-      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.warehouseLocation.deleteMany({
         where: { id: { in: createdLocationIds } },
       });
     }
+    await finalizeInventoryE2eCleanup(database, pishtehId);
     await app.close();
   });
 

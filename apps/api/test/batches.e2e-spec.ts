@@ -16,7 +16,7 @@ import { allocateAllItemsToBatches } from './helpers/batch-allocation';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 import {
   cleanupPayablesForGoodsReceipts,
-  cleanupPayablesForPurchaseOrders,
+  cleanupE2ePurchaseOrders,
 } from './helpers/payable-cleanup';
 
 const BATCH_BASE = '/api/v1/warehouse/batches';
@@ -64,7 +64,9 @@ describe('Batches & GRN allocations (Phase 3.7 e2e)', () => {
     if (createdBarcodeIds.length > 0) {
       await database.client.barcode.deleteMany({ where: { id: { in: createdBarcodeIds } } });
     }
-    if (createdReceiptIds.length > 0) {
+    if (createdPoIds.length > 0) {
+      await cleanupE2ePurchaseOrders(database, createdPoIds);
+    } else if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
       await database.client.goodsReceiptScanRequest.deleteMany({
         where: { goodsReceiptId: { in: createdReceiptIds } },
@@ -74,21 +76,6 @@ describe('Batches & GRN allocations (Phase 3.7 e2e)', () => {
       });
       await database.client.goodsReceipt.deleteMany({
         where: { id: { in: createdReceiptIds } },
-      });
-    }
-    if (createdPoIds.length > 0) {
-      await cleanupPayablesForPurchaseOrders(database, createdPoIds);
-      await database.client.goodsReceiptItem.deleteMany({
-        where: { goodsReceipt: { purchaseOrderId: { in: createdPoIds } } },
-      });
-      await database.client.goodsReceipt.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrder.deleteMany({
-        where: { id: { in: createdPoIds } },
       });
     }
     if (createdBatchIds.length > 0) {

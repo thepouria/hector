@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   description: 'Hector Business Operating System',
 };
 
+/** Auth-gated ERP shell — never statically export pages. */
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl" className={vazirmatn.variable}>

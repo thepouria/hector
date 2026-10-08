@@ -15,7 +15,7 @@ import { allocateAllItemsToBatches } from './helpers/batch-allocation';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 import {
   cleanupPayablesForGoodsReceipts,
-  cleanupPayablesForPurchaseOrders,
+  cleanupE2ePurchaseOrders,
 } from './helpers/payable-cleanup';
 
 const PO_BASE = '/api/v1/purchasing/purchase-orders';
@@ -59,31 +59,15 @@ describe('Purchase Receiving (Phase 3.5 e2e)', () => {
   });
 
   afterAll(async () => {
-    if (createdReceiptIds.length > 0) {
+    if (createdPoIds.length > 0) {
+      await cleanupE2ePurchaseOrders(database, createdPoIds);
+    } else if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
       await database.client.goodsReceiptItem.deleteMany({
         where: { goodsReceiptId: { in: createdReceiptIds } },
       });
       await database.client.goodsReceipt.deleteMany({
         where: { id: { in: createdReceiptIds } },
-      });
-    }
-    if (createdPoIds.length > 0) {
-      await cleanupPayablesForPurchaseOrders(database, createdPoIds);
-      await database.client.purchaseDiscrepancy.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.goodsReceiptItem.deleteMany({
-        where: { goodsReceipt: { purchaseOrderId: { in: createdPoIds } } },
-      });
-      await database.client.goodsReceipt.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrder.deleteMany({
-        where: { id: { in: createdPoIds } },
       });
     }
     await app.close();

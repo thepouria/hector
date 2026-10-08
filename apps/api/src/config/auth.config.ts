@@ -2,6 +2,8 @@ import { registerAs } from '@nestjs/config';
 
 export type AuthConfig = {
   jwtAccessSecret: string;
+  /** HMAC pepper for opaque refresh-token secret hashes (independent of JWT secret). */
+  refreshPepper: string;
   jwtAccessTtl: string;
   jwtAccessTtlSeconds: number;
   sessionTtlDays: number;
@@ -43,6 +45,7 @@ export const authConfig = registerAs('auth', (): AuthConfig => {
 
   return {
     jwtAccessSecret: process.env.JWT_ACCESS_SECRET ?? '',
+    refreshPepper: process.env.AUTH_REFRESH_PEPPER ?? '',
     jwtAccessTtl,
     jwtAccessTtlSeconds: parseDurationToSeconds(jwtAccessTtl),
     sessionTtlDays,

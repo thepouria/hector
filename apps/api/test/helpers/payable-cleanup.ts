@@ -71,3 +71,58 @@ export async function cleanupPayablesForPurchaseOrders(
     receipts.map((r) => r.id),
   );
 }
+
+/**
+ * Test-only: remove POs created by an e2e suite, including GRNs/payables.
+ * Prevents `received_po_with_remaining` pollution when GRNs are deleted but
+ * PO status remains RECEIVED / PARTIALLY_RECEIVED.
+ */
+export async function cleanupE2ePurchaseOrders(
+  database: DatabaseService,
+  purchaseOrderIds: string[],
+): Promise<void> {
+  if (purchaseOrderIds.length === 0) return;
+
+  await cleanupPayablesForPurchaseOrders(database, purchaseOrderIds);
+  await database.client.purchaseDiscrepancy.deleteMany({
+    where: { purchaseOrderId: { in: purchaseOrderIds } },
+  });
+  await database.client.purchaseOrderCorrection.deleteMany({
+    where: { purchaseOrderId: { in: purchaseOrderIds } },
+  });
+  const returnIds = (
+    await database.client.purchaseReturn.findMany({
+      where: { purchaseOrderId: { in: purchaseOrderIds } },
+      select: { id: true },
+    })
+  ).map((r) => r.id);
+  if (returnIds.length > 0) {
+    await database.client.purchaseReturnItem.deleteMany({
+      where: { purchaseReturnId: { in: returnIds } },
+    });
+    await database.client.purchaseReturn.deleteMany({
+      where: { id: { in: returnIds } },
+    });
+  }
+  await database.client.goodsReceiptItemBatch.deleteMany({
+    where: { goodsReceiptItem: { goodsReceipt: { purchaseOrderId: { in: purchaseOrderIds } } } },
+  });
+  await database.client.goodsReceiptScanRequest.deleteMany({
+    where: { goodsReceipt: { purchaseOrderId: { in: purchaseOrderIds } } },
+  });
+  await database.client.goodsReceiptItem.deleteMany({
+    where: { goodsReceipt: { purchaseOrderId: { in: purchaseOrderIds } } },
+  });
+  await database.client.goodsReceipt.deleteMany({
+    where: { purchaseOrderId: { in: purchaseOrderIds } },
+  });
+  await database.client.purchaseOrderCost.deleteMany({
+    where: { purchaseOrderId: { in: purchaseOrderIds } },
+  });
+  await database.client.purchaseOrderItem.deleteMany({
+    where: { purchaseOrderId: { in: purchaseOrderIds } },
+  });
+  await database.client.purchaseOrder.deleteMany({
+    where: { id: { in: purchaseOrderIds } },
+  });
+}

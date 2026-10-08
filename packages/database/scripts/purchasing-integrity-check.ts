@@ -197,6 +197,26 @@ async function main() {
           LIMIT 20`,
       },
       {
+        name: 'received_po_with_remaining',
+        sql: prisma.$queryRaw`
+          SELECT po.id, po.number
+          FROM purchase_orders po
+          WHERE po.status = 'RECEIVED'
+            AND EXISTS (
+              SELECT 1 FROM purchase_order_items poi
+              LEFT JOIN (
+                SELECT i.purchase_order_item_id, SUM(i.quantity)::int AS qty
+                FROM goods_receipt_items i
+                JOIN goods_receipts g ON g.id = i.goods_receipt_id
+                WHERE g.status = 'POSTED' AND g.purchase_order_id = po.id
+                GROUP BY i.purchase_order_item_id
+              ) posted ON posted.purchase_order_item_id = poi.id
+              WHERE poi.purchase_order_id = po.id
+                AND poi.quantity - COALESCE(posted.qty, 0) - poi.closed_unfulfilled_quantity > 0
+            )
+          LIMIT 20`,
+      },
+      {
         name: 'offer_supplier_or_sku_cross_company',
         sql: prisma.$queryRaw`
           SELECT o.id FROM supplier_offers o

@@ -25,10 +25,12 @@ jobs:
 
     env:
       NODE_ENV: test
+      TZ: UTC
       API_PORT: 3001
       DATABASE_URL: postgresql://hector:hector_dev_password@localhost:5432/hector
       CORS_ORIGINS: http://localhost:3000
       JWT_ACCESS_SECRET: ci-test-hector-jwt-access-secret-32chars-min
+      AUTH_REFRESH_PEPPER: ci-test-hector-refresh-pepper-32chars-min-xx
       JWT_ACCESS_TTL: 15m
       AUTH_SESSION_TTL_DAYS: 30
       DEV_SEED_PASSWORD: HectorDevPassword1
@@ -46,15 +48,84 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      # GATE 1 — Static
       - run: pnpm db:generate
-      - run: pnpm db:migrate:deploy
-      - run: pnpm db:seed
-      - run: pnpm db:check:catalog
-      - run: pnpm db:check:purchasing
-      - run: pnpm db:check:warehouse
       - run: pnpm typecheck
       - run: pnpm lint
+
+      # GATE 2 — Unit + security (shared DB; migrate/seed first)
+      - run: pnpm db:migrate:deploy
+      - run: pnpm db:seed
+      - name: Clean bootstrap integrity
+        run: pnpm integrity:all
       - run: pnpm test
       - run: pnpm test:security
+
+      # GATE 3 — Full E2E (serial) then GATE 4 — post-E2E integrity (no DB reset)
+      # test:e2e runs Jest then integrity:all against the same database.
       - run: pnpm test:e2e
+
+      # GATE 5 — Production build
       - run: pnpm build
+
+  # GATE 6 — Supply-chain / secret scanning (P.3 / PR-006)
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Dependency audit (critical block)
+        run: pnpm audit --audit-level=critical
+      - name: Dependency audit report (high — tracked exceptions)
+        run: pnpm audit --audit-level=high || true
+      - name: Validate Compose (dedicated + shared-host)
+        run: pnpm security:compose
+
+  # GATE 7 — Production Docker artifacts + image scan (P.2 / P.3)
+  docker-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile --target runner -t hector-api:ci-${{ github.sha }} .
+      - name: Build migrator image
+        run: docker build -f apps/api/Dockerfile --target migrator -t hector-api-migrate:ci-${{ github.sha }} .
+      - name: Build Web image
+        run: >
+          docker build -f apps/web/Dockerfile --target runner
+          --build-arg NEXT_PUBLIC_API_URL=https://core-hector.pishete.com
+          -t hector-web:ci-${{ github.sha }} .
+      - name: Validate production Compose
+        run: |
+          cp infra/production/env/smoke.env /tmp/hector-ci.env
+          sed -i "s/smoke-local/ci-${GITHUB_SHA}/g" /tmp/hector-ci.env
+          docker compose -f infra/production/compose.yaml --env-file /tmp/hector-ci.env config --quiet
+          docker compose -p hector -f infra/production/compose.shared-host.yaml --env-file /tmp/hector-ci.env config --quiet
+      - name: Trivy scan API image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: hector-api:ci-${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: Trivy scan Web image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: hector-web:ci-${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true

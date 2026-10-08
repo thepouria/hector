@@ -50,11 +50,19 @@ describe('Reconciliation Engine (e2e) Phase 6.4', () => {
     for (const id of createdChannelSettlementIds) {
       const items = await database.client.settlementItem.findMany({
         where: { sourceType: 'CHANNEL', sourceId: id },
+        select: { id: true, settlementId: true, companyId: true },
       });
       for (const item of items) {
-        await database.client.settlementAllocation.deleteMany({
-          where: { settlementItemId: item.id },
+        await database.client.settlementAllocationFxDetail.deleteMany({
+          where: {
+            allocation: { settlementItemId: item.id, companyId: item.companyId },
+          },
         });
+        await database.client.settlementAllocation.deleteMany({
+          where: { settlementItemId: item.id, companyId: item.companyId },
+        });
+        await database.client.settlementItem.deleteMany({ where: { id: item.id } });
+        await database.client.settlement.deleteMany({ where: { id: item.settlementId } });
       }
       await database.client.channelSettlementComponent.deleteMany({
         where: { channelSettlementId: id },

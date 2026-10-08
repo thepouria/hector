@@ -1,5 +1,7 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { AuthConfig } from '../../../config';
 
 export type ParsedRefreshToken = {
   sessionId: string;
@@ -8,10 +10,16 @@ export type ParsedRefreshToken = {
 
 /**
  * Refresh token format: `${sessionId}.${secret}`
- * Only the secret is hashed (SHA-256) and stored. Session ID enables O(1) lookup.
+ * Only the secret is hashed and stored. Session ID enables O(1) lookup.
+ *
+ * Hashing uses HMAC-SHA256 with AUTH_REFRESH_PEPPER when configured (production),
+ * otherwise SHA-256(secret) for local/test compatibility with existing sessions.
+ * Refresh tokens are opaque — they are not JWTs and do not use JWT_ACCESS_SECRET.
  */
 @Injectable()
 export class RefreshTokenService {
+  constructor(private readonly configService: ConfigService) {}
+
   createSecret(): string {
     return randomBytes(32).toString('base64url');
   }
@@ -37,6 +45,10 @@ export class RefreshTokenService {
   }
 
   hashSecret(secret: string): string {
+    const pepper = this.configService.get<AuthConfig>('auth')?.refreshPepper ?? '';
+    if (pepper.length > 0) {
+      return createHmac('sha256', pepper).update(secret).digest('hex');
+    }
     return createHash('sha256').update(secret).digest('hex');
   }
 
@@ -53,6 +65,8 @@ export class RefreshTokenService {
   }
 
   private isUuid(value: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
   }
 }

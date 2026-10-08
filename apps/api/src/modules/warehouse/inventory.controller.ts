@@ -77,6 +77,31 @@ export class InventoryController {
     }
   }
 
+  // Static path segments before parameterized routes (Nest matches in declaration order).
+  @Get('movements')
+  @RequirePermissions(PERMISSIONS.WAREHOUSE_STOCK_READ)
+  @ApiOperation({
+    summary: 'List inventory movement ledger history',
+    description: 'Append-only ledger. Posted movements are immutable — no edit/delete.',
+  })
+  async listMovements(
+    @CurrentCompany() company: CompanyContext,
+    @Query() query: ListInventoryMovementsQueryDto,
+  ) {
+    return this.inventoryLedger.listMovements(company, query);
+  }
+
+  @Get('movements/:movementId')
+  @RequirePermissions(PERMISSIONS.WAREHOUSE_STOCK_READ)
+  @ApiOperation({ summary: 'Inventory movement detail' })
+  async getMovement(
+    @CurrentCompany() company: CompanyContext,
+    @Param('movementId', ParseUUIDPipe) movementId: string,
+  ) {
+    const data = await this.inventoryLedger.getMovement(company, movementId);
+    return { data };
+  }
+
   @Get('skus/:skuId')
   @RequirePermissions(PERMISSIONS.WAREHOUSE_STOCK_READ)
   @ApiOperation({
@@ -120,29 +145,5 @@ export class InventoryController {
     @Param('batchId', ParseUUIDPipe) batchId: string,
   ) {
     return { data: await this.inventoryQuery.getBatchSummary(company, batchId) };
-  }
-
-  @Get('movements')
-  @RequirePermissions(PERMISSIONS.WAREHOUSE_STOCK_READ)
-  @ApiOperation({
-    summary: 'List inventory movement ledger history',
-    description: 'Append-only ledger. Posted movements are immutable — no edit/delete.',
-  })
-  async listMovements(
-    @CurrentCompany() company: CompanyContext,
-    @Query() query: ListInventoryMovementsQueryDto,
-  ) {
-    return this.inventoryLedger.listMovements(company, query);
-  }
-
-  @Get('movements/:movementId')
-  @RequirePermissions(PERMISSIONS.WAREHOUSE_STOCK_READ)
-  @ApiOperation({ summary: 'Inventory movement detail' })
-  async getMovement(
-    @CurrentCompany() company: CompanyContext,
-    @Param('movementId', ParseUUIDPipe) movementId: string,
-  ) {
-    const data = await this.inventoryLedger.getMovement(company, movementId);
-    return { data };
   }
 }

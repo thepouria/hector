@@ -19,7 +19,11 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { InventoryLedgerService } from '../src/modules/warehouse/inventory-ledger.service';
-import { deleteInventoryMovements } from './helpers/delete-movements';
+import {
+  deleteInventoryMovements,
+  finalizeInventoryE2eCleanup,
+  syncBalanceFromLedger,
+} from './helpers/delete-movements';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 
 const ADJ_BASE = '/api/v1/warehouse/adjustments';
@@ -138,47 +142,18 @@ describe('Inventory Adjustments + Stock Counts (Phase 3.13 e2e)', () => {
       await deleteInventoryMovements(database, { id: { in: createdMovementIds } });
     }
     for (const key of touchedBalanceKeys) {
-      const sum = await database.client.inventoryMovement.aggregate({
-        where: {
-          companyId: pishtehId,
-          warehouseId: key.warehouseId,
-          locationId: key.locationId,
-          skuId: key.skuId,
-          batchId: key.batchId,
-          classification: key.classification,
-        },
-        _sum: { quantityDelta: true },
-      });
-      const qty = sum._sum.quantityDelta ?? 0;
-      const whereKey = {
-        companyId: pishtehId,
-        warehouseId: key.warehouseId,
-        locationId: key.locationId,
-        skuId: key.skuId,
-        batchId: key.batchId,
-        classification: key.classification,
-      };
-      if (qty === 0) {
-        await database.client.inventoryBalance.deleteMany({ where: whereKey });
-      } else {
-        await database.client.inventoryBalance.upsert({
-          where: {
-            companyId_warehouseId_locationId_skuId_batchId_classification: whereKey,
-          },
-          update: { onHandQuantity: qty },
-          create: { ...whereKey, onHandQuantity: qty },
-        });
-      }
+      await syncBalanceFromLedger(database, { companyId: pishtehId, ...key });
     }
     if (createdLocationIds.length > 0) {
+      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.inventoryBalance.deleteMany({
         where: { locationId: { in: createdLocationIds } },
       });
-      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.warehouseLocation.deleteMany({
         where: { id: { in: createdLocationIds } },
       });
     }
+    await finalizeInventoryE2eCleanup(database, pishtehId);
     await app.close();
   });
 

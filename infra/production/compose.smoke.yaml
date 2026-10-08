@@ -1,0 +1,47 @@
+# Isolated local smoke overlay — never targets the production server.
+# Uses a separate Compose project name, networks, and volumes.
+#
+#   docker compose \
+#     -f infra/production/compose.yaml \
+#     -f infra/production/compose.smoke.yaml \
+#     --env-file infra/production/env/smoke.env \
+#     up -d
+
+name: hector-smoke
+
+services:
+  postgres:
+    volumes:
+      - hector_smoke_postgres_data:/var/lib/postgresql/data
+
+  nginx:
+    ports:
+      - '${NGINX_HTTP_PORT:-18080}:80'
+      - '${NGINX_HTTPS_PORT:-18443}:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - hector_smoke_certbot_www:/var/www/certbot:ro
+      - hector_smoke_certs:/etc/nginx/certs:ro
+
+networks:
+  public_proxy_network:
+    name: hector_smoke_public_proxy
+  internal_application_network:
+    name: hector_smoke_internal_app
+    internal: true
+
+volumes:
+  hector_smoke_postgres_data:
+    name: hector_smoke_postgres_data
+  hector_smoke_certs:
+    name: hector_smoke_certs
+  hector_smoke_certbot_www:
+    name: hector_smoke_certbot_www
+  # Satisfy base-file volume keys without creating production names during smoke.
+  hector_prod_postgres_data:
+    name: hector_smoke_postgres_data
+  hector_prod_certs:
+    name: hector_smoke_certs
+  hector_prod_certbot_www:
+    name: hector_smoke_certbot_www

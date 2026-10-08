@@ -15,7 +15,7 @@ import { DatabaseService } from '../src/infrastructure/database/database.service
 import { SupplierPayablesService } from '../src/modules/finance/supplier-payables.service';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
-import { cleanupPayablesForGoodsReceipts } from './helpers/payable-cleanup';
+import { cleanupE2ePurchaseOrders } from './helpers/payable-cleanup';
 
 describe('Finance Supplier Payables (e2e)', () => {
   let app: INestApplication;
@@ -28,6 +28,7 @@ describe('Finance Supplier Payables (e2e)', () => {
   let demoBId: string;
   let mainWarehouseId: string;
   let ownerUserId: string;
+  const createdPoIds: string[] = [];
   const createdReceiptIds: string[] = [];
   const createdPayableIds: string[] = [];
 
@@ -58,18 +59,6 @@ describe('Finance Supplier Payables (e2e)', () => {
   });
 
   afterAll(async () => {
-    if (createdReceiptIds.length > 0) {
-      await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
-      await database.client.goodsReceiptItemBatch.deleteMany({
-        where: { goodsReceiptItem: { goodsReceiptId: { in: createdReceiptIds } } },
-      });
-      await database.client.goodsReceiptItem.deleteMany({
-        where: { goodsReceiptId: { in: createdReceiptIds } },
-      });
-      await database.client.goodsReceipt.deleteMany({
-        where: { id: { in: createdReceiptIds } },
-      });
-    }
     if (createdPayableIds.length > 0) {
       await database.client.supplierPaymentAllocation.deleteMany({
         where: { payableId: { in: createdPayableIds } },
@@ -87,6 +76,9 @@ describe('Finance Supplier Payables (e2e)', () => {
         where: { id: { in: createdPayableIds } },
       });
     }
+    // Must remove POs with GRNs — deleting GRNs alone leaves RECEIVED POs that
+    // fail purchasing integrity (received_po_with_remaining).
+    await cleanupE2ePurchaseOrders(database, createdPoIds);
     await app.close();
   });
 
@@ -158,6 +150,7 @@ describe('Finance Supplier Payables (e2e)', () => {
       .send(body)
       .expect(201);
     const poId = created.body.data.id as string;
+    createdPoIds.push(poId);
     const itemId = created.body.data.items[0].id as string;
     await request(app.getHttpServer())
       .post(`/api/v1/purchasing/purchase-orders/${poId}/approve`)

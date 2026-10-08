@@ -86,4 +86,9 @@ export function extractRefreshCookie(setCookie: string[] | undefined): string | 
   return match?.split(';')[0];
 }
 
+/** Trusted web origin for cookie-auth CSRF tests (matches CORS_ORIGINS). */
+export function e2eTrustedOrigin(): string {
+  return (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(',')[0]!.trim();
+}
+
 export const E2E_PASSWORD = process.env.DEV_SEED_PASSWORD ?? 'HectorDevPassword1';

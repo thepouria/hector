@@ -16,11 +16,14 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
-import { deleteInventoryMovements } from './helpers/delete-movements';
+import {
+  deleteInventoryMovements,
+  finalizeInventoryE2eCleanup,
+} from './helpers/delete-movements';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 import {
+  cleanupE2ePurchaseOrders,
   cleanupPayablesForGoodsReceipts,
-  cleanupPayablesForPurchaseOrders,
 } from './helpers/payable-cleanup';
 
 const PUT_BASE = '/api/v1/warehouse/putaways';
@@ -92,12 +95,16 @@ describe('Putaways (Phase 3.8 e2e)', () => {
       });
     }
     if (createdLocationIds.length > 0) {
+      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.inventoryBalance.deleteMany({
         where: { locationId: { in: createdLocationIds } },
       });
-      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
     }
-    if (createdReceiptIds.length > 0) {
+    // Prefer PO-scoped cleanup so RECEIVED POs cannot remain after GRN deletion
+    // (purchaseOrderCost / payables otherwise abort afterAll and pollute purchasing integrity).
+    if (createdPoIds.length > 0) {
+      await cleanupE2ePurchaseOrders(database, createdPoIds);
+    } else if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
       await database.client.goodsReceiptItemBatch.deleteMany({
         where: { goodsReceiptItem: { goodsReceiptId: { in: createdReceiptIds } } },
@@ -110,15 +117,6 @@ describe('Putaways (Phase 3.8 e2e)', () => {
       });
       await database.client.goodsReceipt.deleteMany({
         where: { id: { in: createdReceiptIds } },
-      });
-    }
-    if (createdPoIds.length > 0) {
-      await cleanupPayablesForPurchaseOrders(database, createdPoIds);
-      await database.client.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrder.deleteMany({
-        where: { id: { in: createdPoIds } },
       });
     }
     if (createdBatchIds.length > 0) {
@@ -148,6 +146,7 @@ describe('Putaways (Phase 3.8 e2e)', () => {
     if (tempUserIds.length > 0) {
       await database.client.user.deleteMany({ where: { id: { in: tempUserIds } } });
     }
+    await finalizeInventoryE2eCleanup(database, pishtehId);
     await app.close();
   });
 
@@ -238,11 +237,15 @@ describe('Putaways (Phase 3.8 e2e)', () => {
       await allocateAllItemsToBatches(app, auth(token), goodsReceiptId);
     }
 
-    await request(app.getHttpServer())
+    const posted = await request(app.getHttpServer())
       .post(`${GRN_BASE}/${goodsReceiptId}/post`)
       .set(auth(token))
-      .send({})
-      .expect(201);
+      .send({});
+    if (posted.status !== 201) {
+      throw new Error(
+        `GRN post expected 201, got ${posted.status} for ${goodsReceiptId}: ${JSON.stringify(posted.body)}`,
+      );
+    }
 
     const detail = await request(app.getHttpServer())
       .get(`${GRN_BASE}/${goodsReceiptId}`)

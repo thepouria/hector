@@ -94,21 +94,8 @@ describe('Purchase Returns / Corrections (e2e)', () => {
       });
     }
     if (createdPoIds.length > 0) {
-      await database.client.purchaseOrderCorrection.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseDiscrepancy.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrderCost.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrder.deleteMany({
-        where: { id: { in: createdPoIds } },
-      });
+      const { cleanupE2ePurchaseOrders } = await import('./helpers/payable-cleanup');
+      await cleanupE2ePurchaseOrders(database, createdPoIds);
     }
     await app.close();
   });

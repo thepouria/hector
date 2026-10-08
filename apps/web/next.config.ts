@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import path from 'node:path';
 
 const apiOrigin = (() => {
   const raw = process.env.NEXT_PUBLIC_API_URL;
@@ -18,6 +19,15 @@ if (apiOrigin) {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Production Docker image uses `output: 'standalone'` (see apps/web/Dockerfile).
+  // Keep local `next start` / `next dev` unchanged when OUTPUT_STANDALONE is unset.
+  ...(process.env.OUTPUT_STANDALONE === '1'
+    ? {
+        output: 'standalone' as const,
+        // Monorepo: trace files from repository root so workspace deps resolve.
+        outputFileTracingRoot: path.join(__dirname, '../..'),
+      }
+    : {}),
   async headers() {
     return [
       {

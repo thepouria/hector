@@ -1,5 +1,6 @@
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
 type AuthHeaders = Record<string, string>;
 
@@ -28,7 +29,8 @@ export async function allocateAllItemsToBatches(
     batchAllocations?: Array<{ id: string; batchId: string; quantity: number }>;
   }>;
 
-  const prefix = options?.supplierBatchPrefix ?? `E2E-LOT-${Date.now().toString(36)}`;
+  // UUID prefix avoids Date.now() collisions under dense e2e traffic.
+  const prefix = options?.supplierBatchPrefix ?? `E2E-LOT-${randomUUID().slice(0, 12)}`;
 
   for (const [index, item] of items.entries()) {
     const allocated = item.allocatedQuantity ?? 0;

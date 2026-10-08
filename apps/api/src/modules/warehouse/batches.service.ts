@@ -314,6 +314,10 @@ export class BatchesService {
     const sequence = await allocateBatchSequence(tx, companyId);
     const batchNumber = formatBatchNumber(sequence);
 
+    // Unique violations abort the Postgres transaction. Use a savepoint so a
+    // concurrent supplier-batch race can resolve to the existing row in-tx
+    // (required for goods-receipt paths that continue writing inventory).
+    await tx.$executeRawUnsafe('SAVEPOINT hector_batch_create');
     try {
       const row = await tx.batch.create({
         data: {
@@ -326,6 +330,8 @@ export class BatchesService {
           notes,
         },
       });
+
+      await tx.$executeRawUnsafe('RELEASE SAVEPOINT hector_batch_create');
 
       await this.auditService.record(tx, {
         action: AUDIT_ACTIONS.BATCH_CREATED,
@@ -365,6 +371,7 @@ export class BatchesService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
+        await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT hector_batch_create');
         const raced = await tx.batch.findFirst({
           where: { companyId, skuId: input.skuId, supplierBatchNumber },
         });
@@ -380,6 +387,11 @@ export class BatchesService {
             created: false,
           };
         }
+      }
+      try {
+        await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT hector_batch_create');
+      } catch {
+        // Savepoint may already be released or rolled back.
       }
       mapBatchUniqueViolation(error);
       throw error;

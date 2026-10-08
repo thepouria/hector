@@ -7,10 +7,18 @@ dist
 out
 build
 
-# Environment
+# Environment / secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!**/*.env.example
+!.env*.example
+infra/production/env/production.env
+infra/production/.smoke-evidence/
+infra/production/.smoke-evidence-shared/
+*.pem
+*.key
+!infra/production/**/*.template
 
 # Logs
 *.log

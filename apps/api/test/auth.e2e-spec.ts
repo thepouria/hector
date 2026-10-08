@@ -2,7 +2,12 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { UserStatus } from '@hector/database';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
-import { createE2eApp, E2E_PASSWORD, extractRefreshCookie } from './helpers/e2e-app';
+import {
+  createE2eApp,
+  E2E_PASSWORD,
+  e2eTrustedOrigin,
+  extractRefreshCookie,
+} from './helpers/e2e-app';
 
 /**
  * Auth E2E tests require PostgreSQL and seeded users (`pnpm db:seed`).
@@ -53,6 +58,7 @@ describe('Auth (e2e)', () => {
     const refresh = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', refreshCookie!)
+      .set('Origin', e2eTrustedOrigin())
       .expect(200);
 
     const nextCookie = extractRefreshCookie(refresh.headers['set-cookie']);
@@ -72,6 +78,7 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', refreshCookie!)
+      .set('Origin', e2eTrustedOrigin())
       .expect(401);
 
     await request(app.getHttpServer())
@@ -88,6 +95,7 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
       .set('Authorization', `Bearer ${relogin.body.data.accessToken}`)
+      .set('Origin', e2eTrustedOrigin())
       .expect(200);
 
     await request(app.getHttpServer())
@@ -135,6 +143,7 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout-all')
       .set('Authorization', `Bearer ${second.body.data.accessToken}`)
+      .set('Origin', e2eTrustedOrigin())
       .expect(200);
 
     await request(app.getHttpServer())
@@ -169,14 +178,22 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer())
       .delete(`/api/v1/auth/sessions/${foreignSessionId}`)
       .set('Authorization', `Bearer ${pouria.body.data.accessToken}`)
+      .set('Origin', e2eTrustedOrigin())
       .expect(404);
 
     const refreshCookie = extractRefreshCookie(pouria.headers['set-cookie']);
     expect(refreshCookie).toBeDefined();
 
+    const origin = e2eTrustedOrigin();
     const [firstRefresh, secondRefresh] = await Promise.all([
-      request(app.getHttpServer()).post('/api/v1/auth/refresh').set('Cookie', refreshCookie!),
-      request(app.getHttpServer()).post('/api/v1/auth/refresh').set('Cookie', refreshCookie!),
+      request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', refreshCookie!)
+        .set('Origin', origin),
+      request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', refreshCookie!)
+        .set('Origin', origin),
     ]);
 
     const statuses = [firstRefresh.status, secondRefresh.status].sort();

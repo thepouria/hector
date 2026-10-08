@@ -37,6 +37,12 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService);
   const appConfig = configService.getOrThrow<AppConfig>('app');
 
+  // Trust exactly one hop (Nginx). Required for real client IPs and secure
+  // connection detection when TLS terminates at the reverse proxy.
+  if (appConfig.isProduction) {
+    app.set('trust proxy', 1);
+  }
+
   app.use(requestIdMiddleware);
   app.use(helmet());
   app.use(noStoreApiCacheMiddleware);

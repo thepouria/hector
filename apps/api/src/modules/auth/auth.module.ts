@@ -22,7 +22,11 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
         return {
           secret: auth.jwtAccessSecret,
           signOptions: {
+            algorithm: 'HS256' as const,
             expiresIn: auth.jwtAccessTtlSeconds,
+          },
+          verifyOptions: {
+            algorithms: ['HS256'],
           },
         };
       },

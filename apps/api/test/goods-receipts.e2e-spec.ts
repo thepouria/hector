@@ -18,7 +18,10 @@ import { DatabaseService } from '../src/infrastructure/database/database.service
 import { DOMAIN_EVENTS, DomainEventBus } from '../src/infrastructure/events';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
-import { cleanupPayablesForGoodsReceipts } from './helpers/payable-cleanup';
+import {
+  cleanupE2ePurchaseOrders,
+  cleanupPayablesForGoodsReceipts,
+} from './helpers/payable-cleanup';
 import { createPartyLinkedSupplier } from './helpers/party-linked-supplier';
 
 describe('Goods Receipts (e2e)', () => {
@@ -35,6 +38,7 @@ describe('Goods Receipts (e2e)', () => {
   let demoBWarehouseId: string;
   const tempCompanyIds: string[] = [];
   const createdReceiptIds: string[] = [];
+  const createdPoIds: string[] = [];
 
   beforeAll(async () => {
     app = await createE2eApp();
@@ -93,8 +97,14 @@ describe('Goods Receipts (e2e)', () => {
   });
 
   afterAll(async () => {
+    // PO-scoped cleanup removes GRNs/payables/costs together so RECEIVED POs
+    // cannot remain after partial GRN deletion.
+    await cleanupE2ePurchaseOrders(database, createdPoIds);
     if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
+      await database.client.goodsReceiptItemBatch.deleteMany({
+        where: { goodsReceiptItem: { goodsReceiptId: { in: createdReceiptIds } } },
+      });
       await database.client.goodsReceiptItem.deleteMany({
         where: { goodsReceiptId: { in: createdReceiptIds } },
       });
@@ -204,16 +214,22 @@ describe('Goods Receipts (e2e)', () => {
       .expect(201);
     const poId = created.body.data.id as string;
     const itemId = created.body.data.items[0].id as string;
-    await request(app.getHttpServer())
+    const approved = await request(app.getHttpServer())
       .post(`/api/v1/purchasing/purchase-orders/${poId}/approve`)
       .set(auth(token))
-      .send({})
-      .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/v1/purchasing/purchase-orders/${poId}/mark-ordered`)
+      .send({});
+    expect(approved.status).toBe(201);
+    // Canonical Phase 2.9 command (`/order`); `/mark-ordered` is an alias.
+    const ordered = await request(app.getHttpServer())
+      .post(`/api/v1/purchasing/purchase-orders/${poId}/order`)
       .set(auth(token))
-      .send({})
-      .expect(201);
+      .send({});
+    if (ordered.status !== 201) {
+      throw new Error(
+        `createOrderedPo order failed: status=${ordered.status} body=${JSON.stringify(ordered.body)}`,
+      );
+    }
+    createdPoIds.push(poId);
     return { poId, itemId, skuId: sku.id };
   }
 
@@ -469,9 +485,34 @@ describe('Goods Receipts (e2e)', () => {
     expect(inactiveCreate.status).toBe(409);
     await database.client.warehouse.delete({ where: { id: inactive.id } });
 
-    const cancelledPo = await createOrderedPo(token, 20);
+    // Cancel from APPROVED (allowed) — avoids an extra order transition in this negative path.
+    const supplier = await database.client.supplier.findFirstOrThrow({
+      where: { companyId: pishtehId, status: 'ACTIVE' },
+    });
+    const sku = await database.client.sku.findFirstOrThrow({
+      where: { companyId: pishtehId, status: 'ACTIVE' },
+    });
+    const cancelledCreated = await request(app.getHttpServer())
+      .post('/api/v1/purchasing/purchase-orders')
+      .set(auth(token))
+      .send({
+        supplierId: supplier.id,
+        currency: CurrencyCode.IRR,
+        purchaseType: PurchaseCommercialType.CASH,
+        paymentTermType: PaymentTermType.IMMEDIATE,
+        orderDate: '2026-10-04T00:00:00.000Z',
+        items: [{ skuId: sku.id, quantity: 20, unitPrice: '10000' }],
+      })
+      .expect(201);
+    const cancelledPoId = cancelledCreated.body.data.id as string;
+    createdPoIds.push(cancelledPoId);
     await request(app.getHttpServer())
-      .post(`/api/v1/purchasing/purchase-orders/${cancelledPo.poId}/cancel`)
+      .post(`/api/v1/purchasing/purchase-orders/${cancelledPoId}/approve`)
+      .set(auth(token))
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/purchasing/purchase-orders/${cancelledPoId}/cancel`)
       .set(auth(token))
       .send({ reason: 'cancel for grn test' })
       .expect(201);
@@ -479,7 +520,7 @@ describe('Goods Receipts (e2e)', () => {
       .post('/api/v1/goods-receipts')
       .set(auth(token))
       .send({
-        purchaseOrderId: cancelledPo.poId,
+        purchaseOrderId: cancelledPoId,
         warehouseId: mainWarehouseId,
       });
     expect(againstCancelled.status).toBe(409);

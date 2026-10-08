@@ -255,6 +255,11 @@ describe('Finance Expenses + Purchase Costs (e2e) Phase 4.7', () => {
     });
 
     const token = await login(ownerEmail);
+    // Bootstrap CoA for temp companies (approveImmediately posts recognition journals).
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/ledger-accounts')
+      .set(auth(token, company.id))
+      .expect(200);
     const accountRes = await request(app.getHttpServer())
       .post('/api/v1/finance/accounts')
       .set(auth(token, company.id))
@@ -466,8 +471,12 @@ describe('Finance Expenses + Purchase Costs (e2e) Phase 4.7', () => {
         description: 'Reverse test',
         approveImmediately: true,
         requestId: randomUUID(),
-      })
-      .expect(201);
+      });
+    if (created.status !== 201) {
+      throw new Error(
+        `expense create failed: status=${created.status} body=${JSON.stringify(created.body)}`,
+      );
+    }
     const paid = await request(app.getHttpServer())
       .post(`/api/v1/finance/expenses/${created.body.data.id}/pay-now`)
       .set(auth(token, companyId))
@@ -916,12 +925,8 @@ describe('Finance Expenses + Purchase Costs (e2e) Phase 4.7', () => {
         companyId: demoBId,
         requestId: randomUUID(),
       });
-    // forbidNonWhitelisted → 400
-    expect([400, 201]).toContain(res.status);
-    if (res.status === 201) {
-      expect(res.body.data.status).toBe(ExpenseStatus.DRAFT);
-      expect(res.body.data.paymentStatus).toBe(ExpensePaymentStatus.UNPAID);
-    }
+    // forbidNonWhitelisted must reject forged lifecycle fields.
+    expect(res.status).toBe(400);
   });
 
   it('135 — search injection remains parameterized', async () => {

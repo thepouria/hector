@@ -11,7 +11,12 @@ import {
 } from '@hector/database';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { PasswordHasher } from '../src/modules/auth/password/password-hasher.service';
-import { createE2eApp, E2E_PASSWORD, extractRefreshCookie } from './helpers/e2e-app';
+import {
+  createE2eApp,
+  E2E_PASSWORD,
+  e2eTrustedOrigin,
+  extractRefreshCookie,
+} from './helpers/e2e-app';
 
 /**
  * Phase 0.11 security regression matrix (HTTP-level, bypasses frontend).
@@ -673,6 +678,7 @@ describe('Security regression (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
       .set('Authorization', `Bearer ${accessToken}`)
+      .set('Origin', e2eTrustedOrigin())
       .expect(200);
 
     await request(app.getHttpServer())
@@ -697,6 +703,21 @@ describe('Security regression (e2e)', () => {
       .expect(403);
   });
 
+  it('should reject cookie-auth refresh when Origin is absent', async () => {
+    const loginRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: ownerEmail, password })
+      .expect(200);
+
+    const cookie = extractRefreshCookie(loginRes.headers['set-cookie']);
+    expect(cookie).toBeDefined();
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', cookie!)
+      .expect(403);
+  });
+
   it('should allow cookie-auth refresh from a trusted Origin', async () => {
     const loginRes = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -704,7 +725,7 @@ describe('Security regression (e2e)', () => {
       .expect(200);
 
     const cookie = extractRefreshCookie(loginRes.headers['set-cookie']);
-    const trusted = (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(',')[0]!.trim();
+    const trusted = e2eTrustedOrigin();
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
@@ -721,10 +742,12 @@ describe('Security regression (e2e)', () => {
 
     const firstCookie = extractRefreshCookie(loginRes.headers['set-cookie'])!;
     const accessToken = loginRes.body.data.accessToken as string;
+    const trusted = e2eTrustedOrigin();
 
     const refresh = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', firstCookie)
+      .set('Origin', trusted)
       .expect(200);
 
     const nextCookie = extractRefreshCookie(refresh.headers['set-cookie']);
@@ -733,6 +756,7 @@ describe('Security regression (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', firstCookie)
+      .set('Origin', trusted)
       .expect(401);
 
     // Previous access token should fail after session revoke on reuse.
@@ -968,5 +992,42 @@ describe('Security regression (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Company-Id', companyBId)
       .expect(404);
+  });
+
+  it('warehouse: cross-tenant IDOR returns 404 for foreign warehouse id', async () => {
+    const ownerToken = await login(ownerEmail);
+    const listA = await request(app.getHttpServer())
+      .get('/api/v1/warehouses?pageSize=5')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(200);
+
+    const rows = Array.isArray(listA.body.data) ? listA.body.data : listA.body.data?.data;
+    const warehouseA = rows?.[0];
+    expect(warehouseA?.id).toBeTruthy();
+
+    // Object-level: Company A context + Company B membership resource id pattern —
+    // use a foreign UUID that is not owned by Company A.
+    await request(app.getHttpServer())
+      .get(`/api/v1/warehouses/${randomUUID()}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(404);
+
+    // Company switch blocked at membership boundary
+    await request(app.getHttpServer())
+      .get(`/api/v1/warehouses/${warehouseA.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Company-Id', companyBId)
+      .expect(404);
+  });
+
+  it('warehouse inventory: insufficient RBAC is denied', async () => {
+    const limitedToken = await login(limitedUserEmail);
+    await request(app.getHttpServer())
+      .get('/api/v1/warehouse/inventory')
+      .set('Authorization', `Bearer ${limitedToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(403);
   });
 });

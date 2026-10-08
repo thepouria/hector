@@ -256,13 +256,11 @@ describe('Finance Liability Settlements (e2e) Phase 4.9', () => {
   }
 
   async function ensureSupplier(companyId: string): Promise<string> {
-    const existing = await database.client.supplier.findFirst({
-      where: { companyId, status: 'ACTIVE' },
-    });
-    if (existing) return existing.id;
+    // Always create a dedicated party-linked supplier so shared-DB suites cannot
+    // leave a seed supplier in an unlinkable / inactive-for-payable state.
     const created = await createPartyLinkedSupplier(database.client, {
       companyId,
-      code: `SET-${Date.now().toString(36).toUpperCase()}`,
+      code: `SET-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 8)}`,
       name: 'Settlement E2E Supplier',
     });
     return created.id;

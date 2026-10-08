@@ -1,0 +1,171 @@
+# Hector shared-host Compose — coexist with host Nginx + other apps.
+#
+# Standalone file (NOT an override of compose.yaml): Docker Compose cannot
+# reliably remove the dedicated-profile nginx service via merge, so this file
+# never defines nginx or public 80/443 bindings.
+#
+# Usage:
+#   export DEPLOYMENT_MODE=shared-host
+#   docker compose -p hector -f infra/production/compose.shared-host.yaml \
+#     --env-file <secure-env> up -d
+#
+# Host Nginx proxies:
+#   hector.pishete.com      → 127.0.0.1:${HECTOR_WEB_HOST_PORT:-3100}
+#   core-hector.pishete.com → 127.0.0.1:${HECTOR_API_HOST_PORT:-3101}
+#
+# Networks:
+#   hector_db   — internal:true (Postgres + app DB path; no egress)
+#   hector_edge — bridge for loopback port publish to host Nginx only
+#
+# Never publish PostgreSQL. Never bind Web/API to 0.0.0.0.
+# Never run demo seed. Never `down -v` on production volumes.
+
+name: hector
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '20m'
+    max-file: '5'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hector}
+      POSTGRES_USER: ${POSTGRES_USER:-hector_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: ${TZ:-UTC}
+      LANG: en_US.UTF-8
+    volumes:
+      - hector_postgres_data:/var/lib/postgresql/data
+    networks:
+      - hector_db
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    # No ports: — never publish 5432 on a shared host
+    logging: *default-logging
+    mem_limit: ${HECTOR_POSTGRES_MEM_LIMIT:-512m}
+    cpus: ${HECTOR_POSTGRES_CPUS:-0.50}
+
+  migrate:
+    image: ${HECTOR_MIGRATE_IMAGE:-hector-api-migrate:${HECTOR_IMAGE_TAG:?HECTOR_IMAGE_TAG is required}}
+    profiles: ['migrate']
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL_MIGRATE:?DATABASE_URL_MIGRATE is required}
+      TZ: ${TZ:-UTC}
+    networks:
+      - hector_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+
+  api:
+    image: ${HECTOR_API_IMAGE:-hector-api:${HECTOR_IMAGE_TAG:?HECTOR_IMAGE_TAG is required}}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-UTC}
+      API_PORT: ${API_PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://hector.pishete.com}
+      SWAGGER_ENABLED: 'false'
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      AUTH_REFRESH_PEPPER: ${AUTH_REFRESH_PEPPER:?AUTH_REFRESH_PEPPER is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      AUTH_SESSION_TTL_DAYS: ${AUTH_SESSION_TTL_DAYS:-30}
+      AUTH_REFRESH_COOKIE_NAME: ${AUTH_REFRESH_COOKIE_NAME:-hector_refresh}
+    networks:
+      - hector_db
+      - hector_edge
+    ports:
+      # Loopback only — host Nginx is the sole public entrypoint
+      - '${HECTOR_API_BIND_IP:-127.0.0.1}:${HECTOR_API_HOST_PORT:-3101}:${API_PORT:-3001}'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+(process.env.API_PORT||3001)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
+    logging: *default-logging
+    mem_limit: ${HECTOR_API_MEM_LIMIT:-512m}
+    cpus: ${HECTOR_API_CPUS:-0.50}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  web:
+    image: ${HECTOR_WEB_IMAGE:-hector-web:${HECTOR_IMAGE_TAG:?HECTOR_IMAGE_TAG is required}}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-UTC}
+      PORT: ${WEB_PORT:-3000}
+      HOSTNAME: 0.0.0.0
+    networks:
+      - hector_db
+      - hector_edge
+    ports:
+      - '${HECTOR_WEB_BIND_IP:-127.0.0.1}:${HECTOR_WEB_HOST_PORT:-3100}:${WEB_PORT:-3000}'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
+    logging: *default-logging
+    mem_limit: ${HECTOR_WEB_MEM_LIMIT:-512m}
+    cpus: ${HECTOR_WEB_CPUS:-0.50}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+networks:
+  hector_db:
+    name: hector_db
+    driver: bridge
+    # Postgres has no host ports and no path to unrelated Docker networks.
+    internal: true
+  hector_edge:
+    name: hector_edge
+    driver: bridge
+    # Non-internal so loopback port publish works for host Nginx.
+
+volumes:
+  hector_postgres_data:
+    name: hector_postgres_data

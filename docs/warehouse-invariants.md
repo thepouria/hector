@@ -650,6 +650,29 @@ Details: `docs/warehouse-domain-events.md`.
 
 CLI: `pnpm inventory:reconcile` — see `docs/inventory-reconciliation.md`.
 
+### P.1.1 prompt ↔ repository invariant mapping
+
+P.1.1 used provisional `INV-*` labels. Canonical IDs remain **WH-INV-*** / **WH-INT-*** (do not introduce a parallel numbering scheme):
+
+| P.1.1 label | Canonical |
+|---|---|
+| INV-001 Movement Conservation | WH-INT-001 + WH-INV-002 |
+| INV-002 Internal Transfer Conservation | WH-INT-004 / WH-INV-004 |
+| INV-003 Classification Conservation | WH-INT-006 |
+| INV-004 Balance = Ledger Projection | WH-INT-002 / WH-INV-002 |
+| INV-005 No Negative Stock | WH-INV-003 |
+| INV-006 FIFO Layer Equation | WH-INT-011 |
+| INV-007 FIFO Aggregate Reconciliation | WH-INT-013 + valuation integrity |
+| INV-008 FIFO Cost Conservation on Internal Transfer | WH-INT-005 / WH-INT-007 |
+| INV-009 No Double FIFO Consumption | WH-INT-012 |
+| INV-010 Inventory Operations Atomic | WH-INT-021 (idempotent posted ops) + transfer TX |
+| INV-011 Inventory Commands Idempotent | WH-INT-021 |
+| INV-012 Tenant Isolation | WH-INT-022 |
+| INV-013 Batch/Location Dimensional Consistency | WH-INT-001 dimensional keys |
+| INV-014 Integrity Checks Are Read-Only | WH-INT-030 |
+
+Stabilization evidence: `docs/p-1-1-inventory-fifo-stabilization.md`.
+
 ---
 
 ## Critical negative answers (architecture)

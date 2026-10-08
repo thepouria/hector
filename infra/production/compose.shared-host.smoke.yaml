@@ -1,0 +1,30 @@
+# Isolated shared-host smoke overlay — disposable project only.
+# Never use project name "hector", "bazarbashe", "current", or "empire".
+
+name: hector-smoke-shared
+
+services:
+  postgres:
+    volumes:
+      - hector_smoke_shared_postgres_data:/var/lib/postgresql/data
+
+  api:
+    ports:
+      - '${HECTOR_API_BIND_IP:-127.0.0.1}:${HECTOR_API_HOST_PORT:-13101}:${API_PORT:-3001}'
+
+  web:
+    ports:
+      - '${HECTOR_WEB_BIND_IP:-127.0.0.1}:${HECTOR_WEB_HOST_PORT:-13100}:${WEB_PORT:-3000}'
+
+networks:
+  hector_db:
+    name: hector_smoke_shared_db
+    internal: true
+  hector_edge:
+    name: hector_smoke_shared_edge
+
+volumes:
+  hector_smoke_shared_postgres_data:
+    name: hector_smoke_shared_postgres_data
+  hector_postgres_data:
+    name: hector_smoke_shared_postgres_data

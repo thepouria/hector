@@ -99,8 +99,14 @@ describe('Reservations + FIFO foundation (Phase 3.15 e2e)', () => {
       return;
     }
 
+    // Scope to this SKU/warehouse — company-wide movement counts flake when the
+    // shared pishteh seed company accumulates movements from earlier suites.
     const movementsBefore = await database.client.inventoryMovement.count({
-      where: { companyId: pishtehId },
+      where: {
+        companyId: pishtehId,
+        skuId: mascaraSkuId,
+        warehouseId: mainWarehouseId,
+      },
     });
 
     const requestId = randomUUID();
@@ -133,7 +139,11 @@ describe('Reservations + FIFO foundation (Phase 3.15 e2e)', () => {
     expect(after.body.data.available).toBe(before.body.data.available - 5);
 
     const movementsAfter = await database.client.inventoryMovement.count({
-      where: { companyId: pishtehId },
+      where: {
+        companyId: pishtehId,
+        skuId: mascaraSkuId,
+        warehouseId: mainWarehouseId,
+      },
     });
     expect(movementsAfter).toBe(movementsBefore);
 

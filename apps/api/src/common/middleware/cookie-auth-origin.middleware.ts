@@ -5,11 +5,11 @@ import type { NextFunction, Request, Response } from 'express';
  *
  * Hector access tokens are Bearer (not cookie), so most API mutations are not CSRF-vulnerable.
  * Refresh (and other /api/v1/auth cookie flows) use HttpOnly cookies + SameSite=Lax.
- * This middleware additionally rejects state-changing auth requests whose Origin/Referer
- * is present and not in the trusted CORS allowlist.
+ * This middleware rejects state-changing auth requests whose Origin/Referer is missing
+ * or not in the trusted CORS allowlist (fail closed for browser cookie POSTs).
  *
- * Requests without Origin/Referer (non-browser / same-origin edge cases) are allowed;
- * SameSite=Lax still blocks typical cross-site cookie POSTs in modern browsers.
+ * Login remains Origin-optional when neither Origin nor Referer is sent (API clients /
+ * e2e password posts). Browsers still send Origin on cross-origin POSTs.
  */
 export function createCookieAuthOriginGuard(trustedOrigins: string[]) {
   const allow = new Set(trustedOrigins);
@@ -25,7 +25,21 @@ export function createCookieAuthOriginGuard(trustedOrigins: string[]) {
     }
 
     const origin = resolveRequestOrigin(req);
+    const path = normalizedPath(req);
+    const requireOrigin = path !== '/api/v1/auth/login';
+
     if (!origin) {
+      if (requireOrigin) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Origin is required for this request.',
+            details: null,
+          },
+          requestId: (req as Request & { requestId?: string }).requestId ?? null,
+        });
+        return;
+      }
       next();
       return;
     }
@@ -51,7 +65,7 @@ function isCookieAuthStateChange(req: Request): boolean {
     return false;
   }
 
-  const path = req.path || req.url || '';
+  const path = normalizedPath(req);
   return (
     path === '/api/v1/auth/login' ||
     path === '/api/v1/auth/refresh' ||
@@ -59,6 +73,10 @@ function isCookieAuthStateChange(req: Request): boolean {
     path === '/api/v1/auth/logout-all' ||
     path.startsWith('/api/v1/auth/sessions')
   );
+}
+
+function normalizedPath(req: Request): string {
+  return (req.path || req.url || '').split('?')[0] ?? '';
 }
 
 function resolveRequestOrigin(req: Request): string | null {

@@ -15,7 +15,10 @@ import type { INestApplication } from '@nestjs/common';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
-import { cleanupPayablesForGoodsReceipts } from './helpers/payable-cleanup';
+import {
+  cleanupE2ePurchaseOrders,
+  cleanupPayablesForGoodsReceipts,
+} from './helpers/payable-cleanup';
 
 describe('Goods Receipt Scanner Receiving (e2e)', () => {
   let app: INestApplication;
@@ -27,6 +30,7 @@ describe('Goods Receipt Scanner Receiving (e2e)', () => {
   let mainWarehouseId: string;
   const createdReceiptIds: string[] = [];
   const createdBarcodeIds: string[] = [];
+  const createdPoIds: string[] = [];
 
   beforeAll(async () => {
     app = await createE2eApp();
@@ -80,10 +84,14 @@ describe('Goods Receipt Scanner Receiving (e2e)', () => {
     if (createdBarcodeIds.length > 0) {
       await database.client.barcode.deleteMany({ where: { id: { in: createdBarcodeIds } } });
     }
+    await cleanupE2ePurchaseOrders(database, createdPoIds);
     if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
       await database.client.goodsReceiptScanRequest.deleteMany({
         where: { goodsReceiptId: { in: createdReceiptIds } },
+      });
+      await database.client.goodsReceiptItemBatch.deleteMany({
+        where: { goodsReceiptItem: { goodsReceiptId: { in: createdReceiptIds } } },
       });
       await database.client.goodsReceiptItem.deleteMany({
         where: { goodsReceiptId: { in: createdReceiptIds } },
@@ -192,6 +200,7 @@ describe('Goods Receipt Scanner Receiving (e2e)', () => {
       .set(auth(token))
       .send({})
       .expect(201);
+    createdPoIds.push(poId);
     return { poId, itemId, skuId: sku.id };
   }
 

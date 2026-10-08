@@ -136,6 +136,7 @@ describe('Catalog Product Core (e2e)', () => {
       data: { companyMemberId: membership.id, roleId: readRole.id },
     });
 
+    let productId: string | undefined;
     try {
       const token = await login(user.email);
 
@@ -145,11 +146,21 @@ describe('Catalog Product Core (e2e)', () => {
         .set('X-Company-Id', pishtehId)
         .expect(200);
 
-      const seeded = await database.client.product.findFirstOrThrow({
-        where: { companyId: pishtehId, code: 'FAN-SL' },
-      });
+      // Dedicated product — do not depend on seeded FAN-SL (other suites may archive it).
+      const ownerToken = await login(ownerEmail);
+      const owned = await request(app.getHttpServer())
+        .post('/api/v1/catalog/products')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('X-Company-Id', pishtehId)
+        .send({
+          name: `RBAC Product ${Date.now()}`,
+          code: `RBAC-${Date.now().toString(36).toUpperCase()}`,
+        })
+        .expect(201);
+      productId = owned.body.data.id as string;
+
       await request(app.getHttpServer())
-        .get(`/api/v1/catalog/products/${seeded.id}`)
+        .get(`/api/v1/catalog/products/${productId}`)
         .set('Authorization', `Bearer ${token}`)
         .set('X-Company-Id', pishtehId)
         .expect(200);
@@ -162,30 +173,38 @@ describe('Catalog Product Core (e2e)', () => {
         .expect(403);
 
       await request(app.getHttpServer())
-        .patch(`/api/v1/catalog/products/${seeded.id}`)
+        .patch(`/api/v1/catalog/products/${productId}`)
         .set('Authorization', `Bearer ${token}`)
         .set('X-Company-Id', pishtehId)
         .send({ name: 'Forbidden' })
         .expect(403);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/catalog/products/${seeded.id}/archive`)
+        .post(`/api/v1/catalog/products/${productId}/archive`)
         .set('Authorization', `Bearer ${token}`)
         .set('X-Company-Id', pishtehId)
         .expect(403);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/catalog/products/${seeded.id}/activate`)
+        .post(`/api/v1/catalog/products/${productId}/activate`)
         .set('Authorization', `Bearer ${token}`)
         .set('X-Company-Id', pishtehId)
         .expect(403);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/catalog/products/${seeded.id}/deactivate`)
+        .post(`/api/v1/catalog/products/${productId}/deactivate`)
         .set('Authorization', `Bearer ${token}`)
         .set('X-Company-Id', pishtehId)
         .expect(403);
     } finally {
+      if (productId) {
+        await database.client.product
+          .update({
+            where: { id: productId },
+            data: { status: CatalogLifecycleStatus.ARCHIVED, archivedAt: new Date() },
+          })
+          .catch(() => undefined);
+      }
       await database.client.companyMemberRole.deleteMany({
         where: { companyMemberId: membership.id },
       });

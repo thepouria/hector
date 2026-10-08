@@ -17,11 +17,15 @@ import { DatabaseService } from '../src/infrastructure/database/database.service
 import { InventoryLedgerService } from '../src/modules/warehouse/inventory-ledger.service';
 import { InventoryReconciliationService } from '../src/modules/warehouse/inventory-reconciliation.service';
 import { allocateAllItemsToBatches } from './helpers/batch-allocation';
-import { deleteInventoryMovements } from './helpers/delete-movements';
+import {
+  deleteInventoryMovements,
+  finalizeInventoryE2eCleanup,
+  syncBalanceFromLedger,
+} from './helpers/delete-movements';
 import { createE2eApp, E2E_PASSWORD } from './helpers/e2e-app';
 import {
   cleanupPayablesForGoodsReceipts,
-  cleanupPayablesForPurchaseOrders,
+  cleanupE2ePurchaseOrders,
 } from './helpers/payable-cleanup';
 
 const INV_BASE = '/api/v1/warehouse/inventory';
@@ -97,37 +101,11 @@ describe('Stock Balance (Phase 3.10 e2e)', () => {
       await deleteInventoryMovements(database, { id: { in: createdMovementIds } });
     }
     for (const key of touchedBalanceKeys) {
-      const sum = await database.client.inventoryMovement.aggregate({
-        where: {
-          companyId: pishtehId,
-          warehouseId: key.warehouseId,
-          locationId: key.locationId,
-          skuId: key.skuId,
-          batchId: key.batchId,
-          classification: key.classification,
-        },
-        _sum: { quantityDelta: true },
-      });
-      const onHand = sum._sum.quantityDelta ?? 0;
-      const existing = await database.client.inventoryBalance.findUnique({
-        where: {
-          companyId_warehouseId_locationId_skuId_batchId_classification: {
-            companyId: pishtehId,
-            ...key,
-          },
-        },
-      });
-      if (!existing && onHand === 0) continue;
-      if (existing && onHand === 0 && !sum._sum.quantityDelta) {
-        await database.client.inventoryBalance.delete({ where: { id: existing.id } });
-      } else if (existing) {
-        await database.client.inventoryBalance.update({
-          where: { id: existing.id },
-          data: { onHandQuantity: onHand },
-        });
-      }
+      await syncBalanceFromLedger(database, { companyId: pishtehId, ...key });
     }
-    if (createdReceiptIds.length > 0) {
+    if (createdPoIds.length > 0) {
+      await cleanupE2ePurchaseOrders(database, createdPoIds);
+    } else if (createdReceiptIds.length > 0) {
       await cleanupPayablesForGoodsReceipts(database, createdReceiptIds);
       await database.client.goodsReceiptItemBatch.deleteMany({
         where: { goodsReceiptItem: { goodsReceiptId: { in: createdReceiptIds } } },
@@ -139,24 +117,16 @@ describe('Stock Balance (Phase 3.10 e2e)', () => {
         where: { id: { in: createdReceiptIds } },
       });
     }
-    if (createdPoIds.length > 0) {
-      await cleanupPayablesForPurchaseOrders(database, createdPoIds);
-      await database.client.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: { in: createdPoIds } },
-      });
-      await database.client.purchaseOrder.deleteMany({
-        where: { id: { in: createdPoIds } },
-      });
-    }
     if (createdLocationIds.length > 0) {
+      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.inventoryBalance.deleteMany({
         where: { locationId: { in: createdLocationIds } },
       });
-      await deleteInventoryMovements(database, { locationId: { in: createdLocationIds } });
       await database.client.warehouseLocation.deleteMany({
         where: { id: { in: createdLocationIds } },
       });
     }
+    await finalizeInventoryE2eCleanup(database, pishtehId);
     await app.close();
   });
 

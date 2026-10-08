@@ -1359,15 +1359,32 @@ async function main() {
       },
     ];
 
+    // Purchasing lifecycle (PO status vs open qty) belongs to purchasing integrity.
+    // Keep the query as a non-blocking warning so warehouse/FIFO gates stay focused.
+    const purchasingLifecycleWarnings = new Set(['received_po_with_remaining']);
+    const warnings: Violation[] = [];
+
     for (const check of checks) {
       const rows = await check.sql;
-      if (rows.length > 0) {
-        violations.push({ check: check.name, count: rows.length, sample: rows.slice(0, 5) });
+      if (rows.length === 0) continue;
+      const entry = { check: check.name, count: rows.length, sample: rows.slice(0, 5) };
+      if (purchasingLifecycleWarnings.has(check.name)) {
+        warnings.push(entry);
+      } else {
+        violations.push(entry);
       }
     }
 
+    for (const w of warnings) {
+      console.warn(`Warehouse integrity warning (purchasing lifecycle): ${w.check}: ${w.count}`, w.sample ?? '');
+    }
+
     if (violations.length === 0) {
-      console.log('Warehouse integrity check: OK (0 known violations)');
+      console.log(
+        warnings.length === 0
+          ? 'Warehouse integrity check: OK (0 known violations)'
+          : `Warehouse integrity check: OK (${warnings.length} purchasing-lifecycle warning(s); 0 warehouse hard violations)`,
+      );
       process.exit(0);
     }
 
